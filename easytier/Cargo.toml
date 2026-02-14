@@ -337,7 +337,6 @@ default = [
     "socks5",
     "kcp",
     "quic",
-    "faketcp",
     "magic-dns",
     "zstd",
 ]
