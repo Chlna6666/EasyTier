@@ -1,0 +1,7 @@
+feat(fork): use third-party modified libpnet
+
+- deps(pnet): switch to https://github.com/BMCBL/libpnet/ fork
+- net: collect interfaces via network-interface (no pnet::datalink)
+- build: embed git commit metadata for CLI/core --version output
+- docs: document libpnet fork usage in README/README_CN
+

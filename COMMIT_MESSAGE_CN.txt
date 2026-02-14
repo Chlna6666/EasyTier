@@ -1,0 +1,7 @@
+feat(分支): 使用第三方修改版 libpnet
+
+- 依赖(pnet): 切换到 https://github.com/BMCBL/libpnet/ 的 fork
+- 网络: 网卡枚举改用 network-interface（不再走 pnet::datalink）
+- 构建: 注入 git 提交信息，用于 easytier-cli/easytier-core 的 --version 输出
+- 文档: README/README_CN 增加本分支说明
+
