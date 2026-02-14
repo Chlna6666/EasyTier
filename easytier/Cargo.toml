@@ -136,7 +136,8 @@ rand = "0.8.5"
 
 serde = { version = "1.0", features = ["derive"] }
 # NOTE: This branch uses a third-party modified libpnet fork.
-pnet = { git = "https://github.com/BMCBL/libpnet", branch = "main", features = ["serde", "datalink"] }
+# Keep `datalink` behind the `faketcp` feature to avoid requiring Packet.lib/Npcap on Windows by default.
+pnet = { git = "https://github.com/BMCBL/libpnet", branch = "main", features = ["serde"] }
 serde_json = "1"
 
 clap = { version = "4.5.30", features = [
@@ -380,5 +381,5 @@ jemalloc-prof = [
 ]
 tracing = ["tokio/tracing", "dep:console-subscriber"]
 magic-dns = ["dep:hickory-client", "dep:hickory-server"]
-faketcp = ["dep:flume"]
+faketcp = ["dep:flume", "pnet/datalink"]
 zstd = ["dep:zstd"]
