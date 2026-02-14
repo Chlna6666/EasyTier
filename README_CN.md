@@ -75,6 +75,14 @@ easytier-cli gen-autocomplete fish > ~/.config/fish/completions/easytier-cli.fis
 
 ```
 
+## 本分支说明
+
+本分支相对上游 EasyTier 做了以下修改：
+
+- `pnet` 依赖切换为第三方修改版 `libpnet`：https://github.com/BMCBL/libpnet/
+- `src/common/network.rs` 网卡枚举改用 `network-interface`（不再走 `pnet::datalink`）
+- `--version`（`-V`）输出包含内嵌的 git 提交信息（commit/describe/dirty/date/message）
+
 ### 🚀 基本用法
 
 #### 使用共享节点快速组网

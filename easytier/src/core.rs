@@ -83,7 +83,14 @@ fn dump_profile(_cur_allocated: usize) {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "easytier-core", author, version = EASYTIER_VERSION , about, long_about = None)]
+#[command(
+    name = "easytier-core",
+    author,
+    version = EASYTIER_VERSION,
+    long_version = crate::common::constants::easytier_long_version(),
+    about,
+    long_about = None
+)]
 struct Cli {
     #[arg(
         short = 'w',

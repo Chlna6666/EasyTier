@@ -135,7 +135,8 @@ bytecodec = "0.4.15"
 rand = "0.8.5"
 
 serde = { version = "1.0", features = ["derive"] }
-pnet = { version = "0.35.0", features = ["serde"] }
+# NOTE: This branch uses a third-party modified libpnet fork.
+pnet = { git = "https://github.com/BMCBL/libpnet", branch = "main", features = ["serde"] }
 serde_json = "1"
 
 clap = { version = "4.5.30", features = [
@@ -314,18 +315,6 @@ prost-reflect-build = { version = "0.14.0" }
 [target.'cfg(windows)'.build-dependencies]
 reqwest = { version = "0.12.12", features = ["blocking"] }
 zip = "4.0.0"
-
-# enable thunk-rs when compiling for x86_64 or i686 windows
-[target.x86_64-pc-windows-msvc.build-dependencies]
-thunk-rs = { git = "https://github.com/easytier/thunk.git", default-features = false, features = [
-    "win7",
-] }
-
-[target.i686-pc-windows-msvc.build-dependencies]
-thunk-rs = { git = "https://github.com/easytier/thunk.git", default-features = false, features = [
-    "win7",
-] }
-
 
 [dev-dependencies]
 serial_test = "3.0.0"

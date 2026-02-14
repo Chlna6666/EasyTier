@@ -2295,7 +2295,6 @@ dependencies = [
  "tempfile",
  "terminal_size",
  "thiserror 1.0.63",
- "thunk-rs",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
@@ -6100,8 +6099,7 @@ dependencies = [
 [[package]]
 name = "pnet"
 version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "682396b533413cc2e009fbb48aadf93619a149d3e57defba19ff50ce0201bd0d"
+source = "git+https://github.com/BMCBL/libpnet?branch=main#fcbb5ffc6d2f29c23c9fdb1b1b05f7fc5a21276e"
 dependencies = [
  "ipnetwork",
  "pnet_base",

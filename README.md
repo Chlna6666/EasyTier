@@ -74,6 +74,14 @@ easytier-cli gen-autocomplete fish > ~/.config/fish/completions/easytier-cli.fis
 
 ```
 
+## Fork Notes (This Branch)
+
+This branch includes downstream modifications compared to upstream EasyTier:
+
+- `pnet` is switched to a third-party modified `libpnet` fork: https://github.com/BMCBL/libpnet/
+- `src/common/network.rs` uses `network-interface` for interface enumeration (no `pnet::datalink`)
+- `--version` (`-V`) output includes embedded git commit metadata (commit/describe/dirty/date/message)
+
 ### 🚀 Basic Usage
 
 #### Quick Networking with Shared Nodes

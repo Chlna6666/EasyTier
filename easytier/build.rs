@@ -126,7 +126,69 @@ fn check_locale() {
     }
 }
 
+fn emit_git_info() {
+    fn run_git(repo_dir: &std::path::Path, args: &[&str]) -> Option<String> {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(repo_dir)
+            .args(args)
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    fn rustc_env(key: &str, val: &str) {
+        // Keep values single-line for `cargo:rustc-env=...` safety.
+        let val = val.replace('\r', "").replace('\n', " ");
+        println!("cargo:rustc-env={key}={val}");
+    }
+
+    let repo_dir = std::env::var_os("CARGO_MANIFEST_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    // Make builds re-run when git metadata changes (works for normal clones and worktrees).
+    if let Some(git_dir) = run_git(&repo_dir, &["rev-parse", "--git-dir"]) {
+        let git_dir = repo_dir.join(git_dir);
+        let head = git_dir.join("HEAD");
+        let index = git_dir.join("index");
+        println!("cargo:rerun-if-changed={}", head.display());
+        println!("cargo:rerun-if-changed={}", index.display());
+    }
+
+    let commit = run_git(&repo_dir, &["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".into());
+    let commit_short = run_git(&repo_dir, &["rev-parse", "--short=8", "HEAD"])
+        .unwrap_or_else(|| "unknown".into());
+    let describe = run_git(
+        &repo_dir,
+        &["describe", "--tags", "--always", "--dirty=~", "--abbrev=8"],
+    )
+    .unwrap_or_else(|| "unknown".into());
+    let dirty = run_git(&repo_dir, &["status", "--porcelain"])
+        .map(|s| (!s.is_empty()).to_string())
+        .unwrap_or_else(|| "false".into());
+    let commit_date = run_git(&repo_dir, &["show", "-s", "--format=%cI", "HEAD"])
+        .unwrap_or_else(|| "unknown".into());
+    let commit_subject = run_git(&repo_dir, &["show", "-s", "--format=%s", "HEAD"])
+        .unwrap_or_else(|| "unknown".into());
+    let commit_message = run_git(&repo_dir, &["show", "-s", "--format=%B", "HEAD"])
+        .unwrap_or_else(|| commit_subject.clone());
+
+    rustc_env("EASYTIER_GIT_COMMIT", &commit);
+    rustc_env("EASYTIER_GIT_COMMIT_SHORT", &commit_short);
+    rustc_env("EASYTIER_GIT_DESCRIBE", &describe);
+    rustc_env("EASYTIER_GIT_DIRTY", &dirty);
+    rustc_env("EASYTIER_GIT_COMMIT_DATE", &commit_date);
+    rustc_env("EASYTIER_GIT_COMMIT_SUBJECT", &commit_subject);
+    rustc_env("EASYTIER_GIT_COMMIT_MESSAGE", &commit_message);
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    emit_git_info();
+
     // enable thunk-rs when target os is windows and arch is x86_64 or i686
     #[cfg(target_os = "windows")]
     if !std::env::var("TARGET")
