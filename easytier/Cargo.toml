@@ -136,7 +136,7 @@ rand = "0.8.5"
 
 serde = { version = "1.0", features = ["derive"] }
 # NOTE: This branch uses a third-party modified libpnet fork.
-pnet = { git = "https://github.com/BMCBL/libpnet", branch = "main", features = ["serde"] }
+pnet = { git = "https://github.com/BMCBL/libpnet", branch = "main", features = ["serde", "datalink"] }
 serde_json = "1"
 
 clap = { version = "4.5.30", features = [

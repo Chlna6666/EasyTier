@@ -13,6 +13,13 @@ use super::{netns::NetNS, stun::StunInfoCollectorTrait};
 
 pub const CACHED_IP_LIST_TIMEOUT_SEC: u64 = 60;
 
+fn is_internal_iface(iface: &NetworkInterface) -> bool {
+    // `network-interface` does not expose "internal" flags (loopback, etc.).
+    // Best-effort filtering by common loopback/pseudo interface names.
+    let name = iface.name.to_ascii_lowercase();
+    name == "lo" || name.starts_with("lo") || name.contains("loopback")
+}
+
 struct InterfaceFilter {
     iface: NetworkInterface,
 }
@@ -43,12 +50,12 @@ impl InterfaceFilter {
         tracing::trace!(
             "filter linux iface: {:?}, internal: {}, is_tun: {}, has_valid_ip: {}",
             self.iface,
-            self.iface.internal,
+            is_internal_iface(&self.iface),
             self.is_tun_tap_device().await,
             self.has_valid_ip().await
         );
 
-        !self.iface.internal
+        !is_internal_iface(&self.iface)
             && !self.is_tun_tap_device().await
             && self.has_valid_ip().await
     }
@@ -125,24 +132,25 @@ impl InterfaceFilter {
     }
 
     async fn filter_iface(&self) -> bool {
-        !self.iface.internal && self.is_interface_physical().await
+        !is_internal_iface(&self.iface) && self.is_interface_physical().await
     }
 }
 
 #[cfg(target_os = "windows")]
 impl InterfaceFilter {
     async fn filter_iface(&self) -> bool {
+        let internal = is_internal_iface(&self.iface);
         tracing::debug!(
             "iface_name: {:?}, internal: {:?}, iface: {:?}",
             self.iface.name,
-            self.iface.internal,
+            internal,
             self.iface
         );
-        !self.iface.internal
+        !internal
             && self
-            .iface
-            .addr
-            .iter()
+                .iface
+                .addr
+                .iter()
             .map(|a| a.ip())
             .any(|ip| !ip.is_loopback() && !ip.is_unspecified() && !ip.is_multicast())
             && self
