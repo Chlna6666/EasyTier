@@ -33,12 +33,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="cff13bc2-e0c3-4816-849d-26be8d6e7c51" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/src/common/acl_processor.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/common/acl_processor.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gateway/kcp_proxy.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/gateway/kcp_proxy.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gateway/quic_proxy.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/gateway/quic_proxy.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gateway/wrapped_proxy.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/gateway/wrapped_proxy.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/peers/acl_filter.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/peers/acl_filter.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/proto/acl.proto" beforeDir="false" afterPath="$PROJECT_DIR$/src/proto/acl.proto" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,7 +43,7 @@
   <component name="EmbeddingIndexingInfo">
     <option name="cachedIndexableFilesCount" value="220" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:test" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:release" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
@@ -67,29 +62,50 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Cargo.Test EasyTier.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
-    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Cargo.Run easytier-cli.executor": "Run",
+    "Cargo.Run easytier-uptime.executor": "Run",
+    "Cargo.Test EasyTier.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "main",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "org.rust.first.attach.projects": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
-  <component name="RunManager" selected="Cargo.Test EasyTier">
+}]]></component>
+  <component name="RunManager" selected="Cargo.Build">
+    <configuration name="Build" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
+      <option name="buildProfileId" value="release" />
+      <option name="command" value="build" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$/.." />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Run easytier-cli" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="buildProfileId" value="release" />
       <option name="command" value="run --package easytier --bin easytier-cli" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$/.." />
       <envs />
@@ -124,6 +140,7 @@
       </method>
     </configuration>
     <configuration name="Run easytier-uptime" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="buildProfileId" value="dev" />
       <option name="command" value="run --package easytier-uptime --bin easytier-uptime" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$/.." />
       <envs />
@@ -158,7 +175,7 @@
       </method>
     </configuration>
     <configuration name="Test EasyTier" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-      <option name="buildProfileId" value="test" />
+      <option name="buildProfileId" value="bench" />
       <option name="command" value="test --workspace" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$/.." />
       <envs />
@@ -175,6 +192,14 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <list>
+      <item itemvalue="Cargo.Run easytier-cli" />
+      <item itemvalue="Cargo.Run easytier-gui" />
+      <item itemvalue="Cargo.Run easytier-uptime" />
+      <item itemvalue="Cargo.Run easytier-web" />
+      <item itemvalue="Cargo.Test EasyTier" />
+      <item itemvalue="Cargo.Build" />
+    </list>
   </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
@@ -188,7 +213,7 @@
       <updated>1771035418802</updated>
       <workItem from="1771035419923" duration="17583000" />
       <workItem from="1771115536032" duration="3750000" />
-      <workItem from="1771200586602" duration="9706000" />
+      <workItem from="1771200586602" duration="13621000" />
     </task>
     <servers />
   </component>
