@@ -34,6 +34,12 @@ impl ProxyAclHandler {
         packet_info.packet_size = buf.len();
         // For stream proxies we only have TCP bytes here; treat as unknown app protocol.
         packet_info.app_protocol = AppProtocol::Unknown;
+        let (payload_len, payload_prefix, payload_prefix_len, payload_prefix_hash) =
+            crate::common::acl_processor::fingerprint_payload(buf);
+        packet_info.payload_len = payload_len;
+        packet_info.payload_prefix = payload_prefix;
+        packet_info.payload_prefix_len = payload_prefix_len;
+        packet_info.payload_prefix_hash = payload_prefix_hash;
         let ret = self
             .acl_filter
             .get_processor()

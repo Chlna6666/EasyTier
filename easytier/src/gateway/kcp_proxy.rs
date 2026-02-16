@@ -386,6 +386,11 @@ impl KcpProxyDst {
             dst_socket = format!("127.0.0.1:{}", dst_socket.port()).parse().unwrap();
         }
 
+        let (payload_len, payload_prefix, payload_prefix_len, payload_prefix_hash) =
+            crate::common::acl_processor::fingerprint_payload(&conn_data);
+        let (dst_is_broadcast, dst_is_multicast) =
+            crate::common::acl_processor::classify_dst_addr(&dst_ip);
+
         let acl_handler = ProxyAclHandler {
             acl_filter: global_ctx.get_acl_filter().clone(),
             packet_info: PacketInfo {
@@ -395,6 +400,12 @@ impl KcpProxyDst {
                 dst_port: Some(dst_socket.port()),
                 protocol: Protocol::Tcp,
                 app_protocol: crate::proto::acl::AppProtocol::Unknown,
+                payload_len,
+                payload_prefix,
+                payload_prefix_len,
+                payload_prefix_hash,
+                dst_is_broadcast,
+                dst_is_multicast,
                 packet_size: conn_data.len(),
                 src_groups,
                 dst_groups,

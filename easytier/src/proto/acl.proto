@@ -92,6 +92,15 @@ message Rule {
   // Optional app/L7 protocol matching. Empty = don't care.
   // If contains AppAny, app protocol check is skipped.
   repeated AppProtocol app_protocols = 16;
+
+  // Optional payload feature matching (best-effort).
+  // Matches L4 payload (UDP payload / TCP payload). Empty = don't care.
+  // Hex string can contain spaces and optional 0x prefix, e.g. "0x2112A442".
+  repeated string payload_prefix_hex = 17;
+  optional uint32 payload_min_len = 18;
+  optional uint32 payload_max_len = 19;
+  optional bool dst_is_broadcast = 20;
+  optional bool dst_is_multicast = 21;
 }
 
 // Rule chain with metadata and optimization hints

@@ -249,6 +249,12 @@ impl AclFilter {
         let dst_port;
         let protocol;
         let app_protocol;
+        let payload_len;
+        let payload_prefix;
+        let payload_prefix_len;
+        let payload_prefix_hash;
+        let dst_is_broadcast;
+        let dst_is_multicast;
 
         let ipv4_packet = Ipv4Packet::new(payload)?;
         if ipv4_packet.get_version() == 4 {
@@ -262,6 +268,12 @@ impl AclFilter {
                     // TODO: extend to TCP L7 signatures if needed.
                     app_protocol = AppProtocol::Unknown;
                     (
+                        payload_len,
+                        payload_prefix,
+                        payload_prefix_len,
+                        payload_prefix_hash,
+                    ) = crate::common::acl_processor::fingerprint_payload(tcp_packet.payload());
+                    (
                         Some(tcp_packet.get_source()),
                         Some(tcp_packet.get_destination()),
                     )
@@ -270,12 +282,24 @@ impl AclFilter {
                     let udp_packet = UdpPacket::new(ipv4_packet.payload())?;
                     app_protocol = Self::detect_udp_app_protocol(udp_packet.payload());
                     (
+                        payload_len,
+                        payload_prefix,
+                        payload_prefix_len,
+                        payload_prefix_hash,
+                    ) = crate::common::acl_processor::fingerprint_payload(udp_packet.payload());
+                    (
                         Some(udp_packet.get_source()),
                         Some(udp_packet.get_destination()),
                     )
                 }
                 _ => {
                     app_protocol = AppProtocol::Unknown;
+                    (
+                        payload_len,
+                        payload_prefix,
+                        payload_prefix_len,
+                        payload_prefix_hash,
+                    ) = crate::common::acl_processor::fingerprint_payload(&[]);
                     (None, None)
                 }
             };
@@ -290,6 +314,12 @@ impl AclFilter {
                     let tcp_packet = TcpPacket::new(ipv6_packet.payload())?;
                     app_protocol = AppProtocol::Unknown;
                     (
+                        payload_len,
+                        payload_prefix,
+                        payload_prefix_len,
+                        payload_prefix_hash,
+                    ) = crate::common::acl_processor::fingerprint_payload(tcp_packet.payload());
+                    (
                         Some(tcp_packet.get_source()),
                         Some(tcp_packet.get_destination()),
                     )
@@ -298,18 +328,33 @@ impl AclFilter {
                     let udp_packet = UdpPacket::new(ipv6_packet.payload())?;
                     app_protocol = Self::detect_udp_app_protocol(udp_packet.payload());
                     (
+                        payload_len,
+                        payload_prefix,
+                        payload_prefix_len,
+                        payload_prefix_hash,
+                    ) = crate::common::acl_processor::fingerprint_payload(udp_packet.payload());
+                    (
                         Some(udp_packet.get_source()),
                         Some(udp_packet.get_destination()),
                     )
                 }
                 _ => {
                     app_protocol = AppProtocol::Unknown;
+                    (
+                        payload_len,
+                        payload_prefix,
+                        payload_prefix_len,
+                        payload_prefix_hash,
+                    ) = crate::common::acl_processor::fingerprint_payload(&[]);
                     (None, None)
                 }
             };
         } else {
             return None;
         }
+
+        (dst_is_broadcast, dst_is_multicast) =
+            crate::common::acl_processor::classify_dst_addr(&dst_ip);
 
         let acl_protocol = match protocol {
             IpNextHeaderProtocols::Tcp => Protocol::Tcp,
@@ -335,6 +380,12 @@ impl AclFilter {
             dst_port,
             protocol: acl_protocol,
             app_protocol,
+            payload_len,
+            payload_prefix,
+            payload_prefix_len,
+            payload_prefix_hash,
+            dst_is_broadcast,
+            dst_is_multicast,
             packet_size: payload.len(),
             src_groups,
             dst_groups,
@@ -361,6 +412,9 @@ impl AclFilter {
                     dst_group = packet_info.dst_groups.join(","),
                     protocol = ?packet_info.protocol,
                     app_protocol = ?packet_info.app_protocol,
+                    payload_len = packet_info.payload_len,
+                    dst_is_broadcast = packet_info.dst_is_broadcast,
+                    dst_is_multicast = packet_info.dst_is_multicast,
                     action = ?result.action,
                     rule = result.matched_rule_str().as_deref().unwrap_or("unknown"),
                     chain_type = ?chain_type,

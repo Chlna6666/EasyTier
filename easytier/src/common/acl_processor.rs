@@ -64,6 +64,11 @@ pub struct FastLookupRule {
     pub priority: u32,
     pub protocol: Protocol,
     pub app_protocols: Vec<AppProtocol>,
+    pub payload_prefixes: Vec<PayloadPrefix>,
+    pub payload_min_len: Option<u32>,
+    pub payload_max_len: Option<u32>,
+    pub dst_is_broadcast: Option<bool>,
+    pub dst_is_multicast: Option<bool>,
     pub src_ip_ranges: Vec<cidr::IpCidr>,
     pub dst_ip_ranges: Vec<cidr::IpCidr>,
     pub src_port_ranges: Vec<(u16, u16)>,
@@ -84,6 +89,8 @@ pub struct AclCacheKey {
     pub chain_type: ChainType,
     pub protocol: Protocol,
     pub app_protocol: AppProtocol,
+    pub payload_len: u16,
+    pub payload_prefix_hash: u64,
     pub src_ip: IpAddr,
     pub dst_ip: IpAddr,
     pub src_port: u16,
@@ -94,10 +101,28 @@ pub struct AclCacheKey {
 
 impl AclCacheKey {
     pub fn from_packet_info(packet_info: &PacketInfo, chain_type: ChainType) -> Self {
+        Self::from_packet_info_cache(packet_info, chain_type, true)
+    }
+
+    pub fn from_packet_info_cache(
+        packet_info: &PacketInfo,
+        chain_type: ChainType,
+        include_payload: bool,
+    ) -> Self {
         Self {
             chain_type,
             protocol: packet_info.protocol,
             app_protocol: packet_info.app_protocol,
+            payload_len: if include_payload {
+                packet_info.payload_len.min(u16::MAX as usize) as u16
+            } else {
+                0
+            },
+            payload_prefix_hash: if include_payload {
+                packet_info.payload_prefix_hash
+            } else {
+                0
+            },
             src_ip: packet_info.src_ip,
             dst_ip: packet_info.dst_ip,
             src_port: packet_info.src_port.unwrap_or(0),
@@ -131,9 +156,46 @@ pub struct PacketInfo {
     pub dst_port: Option<u16>,
     pub protocol: Protocol,
     pub app_protocol: AppProtocol,
+    pub payload_len: usize,
+    pub payload_prefix: [u8; PayloadPrefix::MAX_LEN],
+    pub payload_prefix_len: u8,
+    pub payload_prefix_hash: u64,
+    pub dst_is_broadcast: bool,
+    pub dst_is_multicast: bool,
     pub packet_size: usize,
     pub src_groups: Arc<Vec<String>>,
     pub dst_groups: Arc<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PayloadPrefix {
+    pub bytes: [u8; Self::MAX_LEN],
+    pub len: u8,
+}
+
+impl PayloadPrefix {
+    pub const MAX_LEN: usize = 32;
+
+    pub fn from_bytes(input: &[u8]) -> Self {
+        let mut bytes = [0u8; Self::MAX_LEN];
+        let len = input.len().min(Self::MAX_LEN);
+        bytes[..len].copy_from_slice(&input[..len]);
+        Self {
+            bytes,
+            len: len as u8,
+        }
+    }
+
+    pub fn matches(&self, pkt_prefix: &[u8], pkt_len: usize) -> bool {
+        let need = self.len as usize;
+        if need == 0 {
+            return true;
+        }
+        if pkt_len < need || pkt_prefix.len() < need {
+            return false;
+        }
+        pkt_prefix[..need] == self.bytes[..need]
+    }
 }
 
 // ACL processing result
@@ -488,18 +550,6 @@ impl AclProcessor {
 
     /// Process a packet through ACL rules - Now lock-free!
     pub fn process_packet(&self, packet_info: &PacketInfo, chain_type: ChainType) -> AclResult {
-        // Check cache first for performance
-        let cache_key = AclCacheKey::from_packet_info(packet_info, chain_type);
-
-        // If cache hit and can skip checks, return cached result
-        if let Some(mut cached) = self.rule_cache.get_mut(&cache_key) {
-            // Update last access time for LRU
-            cached.last_access = Instant::now();
-
-            self.increment_stat(AclStatKey::CacheHits);
-            return self.process_packet_with_cache_entry(packet_info, &cached);
-        }
-
         // Direct access to rules - no locks needed!
         let rules = match chain_type {
             ChainType::Inbound => &self.inbound_rules,
@@ -514,6 +564,23 @@ impl AclProcessor {
                 }
             }
         };
+
+        // Only include payload fingerprint in cache key if payload-dependent rules could apply.
+        // This preserves cache hit rates for normal L4-only rules while remaining correct.
+        let include_payload = self.needs_payload_fingerprint_for_cache(rules, packet_info);
+
+        // Check cache first for performance
+        let cache_key =
+            AclCacheKey::from_packet_info_cache(packet_info, chain_type, include_payload);
+
+        // If cache hit and can skip checks, return cached result
+        if let Some(mut cached) = self.rule_cache.get_mut(&cache_key) {
+            // Update last access time for LRU
+            cached.last_access = Instant::now();
+
+            self.increment_stat(AclStatKey::CacheHits);
+            return self.process_packet_with_cache_entry(packet_info, &cached);
+        }
 
         let mut cache_entry = AclCacheEntry {
             action: Action::Allow,
@@ -661,6 +728,172 @@ impl AclProcessor {
                 .iter()
                 .any(|p| Self::app_protocol_matches(*p, packet_info.app_protocol));
             if !matches {
+                return false;
+            }
+        }
+
+        // Payload length check (optional)
+        if let Some(min_len) = rule.payload_min_len {
+            if (packet_info.payload_len as u32) < min_len {
+                return false;
+            }
+        }
+        if let Some(max_len) = rule.payload_max_len {
+            if (packet_info.payload_len as u32) > max_len {
+                return false;
+            }
+        }
+
+        // Destination broadcast/multicast (optional)
+        if let Some(want) = rule.dst_is_broadcast {
+            if packet_info.dst_is_broadcast != want {
+                return false;
+            }
+        }
+        if let Some(want) = rule.dst_is_multicast {
+            if packet_info.dst_is_multicast != want {
+                return false;
+            }
+        }
+
+        // Payload prefix check (optional)
+        if !rule.payload_prefixes.is_empty() {
+            let pkt_prefix_len = packet_info.payload_prefix_len as usize;
+            let pkt_prefix = &packet_info.payload_prefix[..pkt_prefix_len];
+            let matches = rule
+                .payload_prefixes
+                .iter()
+                .any(|p| p.matches(pkt_prefix, packet_info.payload_len));
+            if !matches {
+                return false;
+            }
+        }
+
+        // Source IP check
+        if !rule.src_ip_ranges.is_empty() {
+            let matches = rule
+                .src_ip_ranges
+                .iter()
+                .any(|cidr| match (cidr, packet_info.src_ip) {
+                    (cidr::IpCidr::V4(v4_cidr), IpAddr::V4(v4_addr)) => v4_cidr.contains(&v4_addr),
+                    (cidr::IpCidr::V6(v6_cidr), IpAddr::V6(v6_addr)) => v6_cidr.contains(&v6_addr),
+                    _ => false,
+                });
+            if !matches {
+                return false;
+            }
+        }
+
+        // Destination IP check
+        if !rule.dst_ip_ranges.is_empty() {
+            let matches = rule
+                .dst_ip_ranges
+                .iter()
+                .any(|cidr| match (cidr, packet_info.dst_ip) {
+                    (cidr::IpCidr::V4(v4_cidr), IpAddr::V4(v4_addr)) => v4_cidr.contains(&v4_addr),
+                    (cidr::IpCidr::V6(v6_cidr), IpAddr::V6(v6_addr)) => v6_cidr.contains(&v6_addr),
+                    _ => false,
+                });
+            if !matches {
+                return false;
+            }
+        }
+
+        // Source port check
+        if let Some(src_port) = packet_info.src_port {
+            if !rule.src_port_ranges.is_empty() {
+                let matches = rule
+                    .src_port_ranges
+                    .iter()
+                    .any(|(start, end)| src_port >= *start && src_port <= *end);
+                if !matches {
+                    return false;
+                }
+            }
+        }
+
+        // Destination port check
+        if let Some(dst_port) = packet_info.dst_port {
+            if !rule.dst_port_ranges.is_empty() {
+                let matches = rule
+                    .dst_port_ranges
+                    .iter()
+                    .any(|(start, end)| dst_port >= *start && dst_port <= *end);
+                if !matches {
+                    return false;
+                }
+            }
+        }
+
+        // Source group check
+        if !rule.source_groups.is_empty() {
+            let matches = packet_info
+                .src_groups
+                .iter()
+                .any(|group| rule.source_groups.contains(group));
+            if !matches {
+                return false;
+            }
+        }
+
+        // Destination group check
+        if !rule.destination_groups.is_empty() {
+            let matches = packet_info
+                .dst_groups
+                .iter()
+                .any(|group| rule.destination_groups.contains(group));
+            if !matches {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn needs_payload_fingerprint_for_cache(
+        &self,
+        rules: &[FastLookupRule],
+        packet_info: &PacketInfo,
+    ) -> bool {
+        rules.iter().any(|rule| {
+            let payload_dependent = !rule.payload_prefixes.is_empty()
+                || rule.payload_min_len.is_some()
+                || rule.payload_max_len.is_some();
+            payload_dependent && self.rule_matches_without_payload_constraints(rule, packet_info)
+        })
+    }
+
+    fn rule_matches_without_payload_constraints(
+        &self,
+        rule: &FastLookupRule,
+        packet_info: &PacketInfo,
+    ) -> bool {
+        // Protocol check
+        if rule.protocol != Protocol::Any && rule.protocol as i32 != packet_info.protocol as i32 {
+            return false;
+        }
+
+        // App protocol check (optional)
+        if !rule.app_protocols.is_empty()
+            && !rule.app_protocols.iter().any(|p| *p == AppProtocol::AppAny)
+        {
+            let matches = rule
+                .app_protocols
+                .iter()
+                .any(|p| Self::app_protocol_matches(*p, packet_info.app_protocol));
+            if !matches {
+                return false;
+            }
+        }
+
+        // Destination broadcast/multicast (optional)
+        if let Some(want) = rule.dst_is_broadcast {
+            if packet_info.dst_is_broadcast != want {
+                return false;
+            }
+        }
+        if let Some(want) = rule.dst_is_multicast {
+            if packet_info.dst_is_multicast != want {
                 return false;
             }
         }
@@ -888,10 +1121,22 @@ impl AclProcessor {
             .filter_map(|v| AppProtocol::try_from(*v).ok())
             .collect::<Vec<_>>();
 
+        let payload_prefixes = rule
+            .payload_prefix_hex
+            .iter()
+            .filter_map(|s| parse_hex_bytes(s))
+            .map(|b| PayloadPrefix::from_bytes(&b))
+            .collect::<Vec<_>>();
+
         FastLookupRule {
             priority: rule.priority,
             protocol: rule.protocol(),
             app_protocols,
+            payload_prefixes,
+            payload_min_len: rule.payload_min_len,
+            payload_max_len: rule.payload_max_len,
+            dst_is_broadcast: rule.dst_is_broadcast,
+            dst_is_multicast: rule.dst_is_multicast,
             src_ip_ranges,
             dst_ip_ranges,
             src_port_ranges,
@@ -1012,6 +1257,62 @@ fn parse_port_range(s: &str) -> Option<(u16, u16)> {
     } else {
         let port = s.trim().parse().ok()?;
         Some((port, port))
+    }
+}
+
+fn parse_hex_bytes(s: &str) -> Option<Vec<u8>> {
+    // Accept "0x.." and ignore whitespace/underscores/colons for convenience.
+    let trimmed = s.trim();
+    let trimmed = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .unwrap_or(trimmed);
+    let mut hex = String::with_capacity(trimmed.len());
+    for ch in trimmed.chars() {
+        if ch.is_ascii_hexdigit() {
+            hex.push(ch);
+        }
+    }
+    if hex.is_empty() || (hex.len() % 2) != 0 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(hex.len() / 2);
+    let bytes = hex.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let hi = (bytes[i] as char).to_digit(16)? as u8;
+        let lo = (bytes[i + 1] as char).to_digit(16)? as u8;
+        out.push((hi << 4) | lo);
+        i += 2;
+    }
+    Some(out)
+}
+
+pub(crate) fn fnv1a64(bytes: &[u8]) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut hash = OFFSET;
+    for b in bytes {
+        hash ^= *b as u64;
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
+}
+
+pub(crate) fn fingerprint_payload(
+    payload: &[u8],
+) -> (usize, [u8; PayloadPrefix::MAX_LEN], u8, u64) {
+    let mut prefix = [0u8; PayloadPrefix::MAX_LEN];
+    let prefix_len = payload.len().min(prefix.len());
+    prefix[..prefix_len].copy_from_slice(&payload[..prefix_len]);
+    let hash = fnv1a64(&payload[..prefix_len]);
+    (payload.len(), prefix, prefix_len as u8, hash)
+}
+
+pub(crate) fn classify_dst_addr(dst_ip: &IpAddr) -> (bool, bool) {
+    match dst_ip {
+        IpAddr::V4(v4) => (*v4 == std::net::Ipv4Addr::BROADCAST, v4.is_multicast()),
+        IpAddr::V6(v6) => (false, v6.is_multicast()),
     }
 }
 
@@ -1168,6 +1469,11 @@ impl AclRuleBuilder {
                 source_groups: vec![],
                 destination_groups: vec![],
                 app_protocols: vec![],
+                payload_prefix_hex: vec![],
+                payload_min_len: None,
+                payload_max_len: None,
+                dst_is_broadcast: None,
+                dst_is_multicast: None,
             };
             let tcp_rule_deny_other = Rule {
                 name: "tcp_whitelist_deny_other".to_string(),
@@ -1186,6 +1492,11 @@ impl AclRuleBuilder {
                 source_groups: vec![],
                 destination_groups: vec![],
                 app_protocols: vec![],
+                payload_prefix_hex: vec![],
+                payload_min_len: None,
+                payload_max_len: None,
+                dst_is_broadcast: None,
+                dst_is_multicast: None,
             };
             inbound_chain.rules.push(tcp_rule);
             inbound_chain.rules.push(tcp_rule_deny_other);
@@ -1212,6 +1523,11 @@ impl AclRuleBuilder {
                 source_groups: vec![],
                 destination_groups: vec![],
                 app_protocols: vec![],
+                payload_prefix_hex: vec![],
+                payload_min_len: None,
+                payload_max_len: None,
+                dst_is_broadcast: None,
+                dst_is_multicast: None,
             };
             let udp_rule_deny_other = Rule {
                 name: "udp_whitelist_deny_other".to_string(),
@@ -1230,6 +1546,11 @@ impl AclRuleBuilder {
                 source_groups: vec![],
                 destination_groups: vec![],
                 app_protocols: vec![],
+                payload_prefix_hex: vec![],
+                payload_min_len: None,
+                payload_max_len: None,
+                dst_is_broadcast: None,
+                dst_is_multicast: None,
             };
             inbound_chain.rules.push(udp_rule);
             inbound_chain.rules.push(udp_rule_deny_other);
@@ -1424,6 +1745,12 @@ mod tests {
             dst_port: Some(80),
             protocol: Protocol::Tcp,
             app_protocol: AppProtocol::Unknown,
+            payload_len: 0,
+            payload_prefix: [0u8; PayloadPrefix::MAX_LEN],
+            payload_prefix_len: 0,
+            payload_prefix_hash: 0,
+            dst_is_broadcast: false,
+            dst_is_multicast: false,
             packet_size: 1024,
             src_groups: Arc::new(vec![]),
             dst_groups: Arc::new(vec![]),
@@ -1625,6 +1952,12 @@ mod tests {
             dst_port: Some(53),      // DNS
             protocol: Protocol::Udp, // UDP
             app_protocol: AppProtocol::Unknown,
+            payload_len: 0,
+            payload_prefix: [0u8; PayloadPrefix::MAX_LEN],
+            payload_prefix_len: 0,
+            payload_prefix_hash: 0,
+            dst_is_broadcast: false,
+            dst_is_multicast: false,
             packet_size: 512,
             src_groups: Arc::new(vec![]),
             dst_groups: Arc::new(vec![]),
@@ -1638,6 +1971,12 @@ mod tests {
             dst_port: Some(80),      // HTTP
             protocol: Protocol::Tcp, // TCP
             app_protocol: AppProtocol::Unknown,
+            payload_len: 0,
+            payload_prefix: [0u8; PayloadPrefix::MAX_LEN],
+            payload_prefix_len: 0,
+            payload_prefix_hash: 0,
+            dst_is_broadcast: false,
+            dst_is_multicast: false,
             packet_size: 1024,
             src_groups: Arc::new(vec![]),
             dst_groups: Arc::new(vec![]),
@@ -1822,6 +2161,104 @@ mod tests {
         pkt.app_protocol = AppProtocol::Unknown;
         assert_eq!(
             processor.process_packet(&pkt, ChainType::Inbound).action,
+            Action::Allow
+        );
+    }
+
+    #[tokio::test]
+    async fn test_payload_prefix_hex_matching() {
+        let mut acl_config = Acl::default();
+        let mut acl_v1 = AclV1::default();
+
+        let mut chain = Chain {
+            name: "inbound".to_string(),
+            chain_type: ChainType::Inbound as i32,
+            enabled: true,
+            default_action: Action::Allow as i32,
+            ..Default::default()
+        };
+
+        // Drop UDP packets whose payload starts with 0x2112A442 (STUN cookie).
+        chain.rules.push(Rule {
+            name: "drop_stun_by_prefix".to_string(),
+            priority: 100,
+            enabled: true,
+            action: Action::Drop as i32,
+            protocol: Protocol::Udp as i32,
+            payload_prefix_hex: vec!["0x2112A442".to_string()],
+            ..Default::default()
+        });
+
+        acl_v1.chains.push(chain);
+        acl_config.acl_v1 = Some(acl_v1);
+
+        let processor = AclProcessor::new(acl_config);
+
+        let mut pkt = create_test_packet_info();
+        pkt.protocol = Protocol::Udp;
+        pkt.app_protocol = AppProtocol::Unknown;
+        pkt.payload_len = 20;
+        pkt.payload_prefix = [0u8; PayloadPrefix::MAX_LEN];
+        pkt.payload_prefix[..4].copy_from_slice(&[0x21, 0x12, 0xA4, 0x42]);
+        pkt.payload_prefix_len = 4;
+        pkt.payload_prefix_hash = fnv1a64(&pkt.payload_prefix[..4]);
+
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Inbound).action,
+            Action::Drop
+        );
+
+        pkt.payload_prefix[..4].copy_from_slice(&[0, 1, 2, 3]);
+        pkt.payload_prefix_hash = fnv1a64(&pkt.payload_prefix[..4]);
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Inbound).action,
+            Action::Allow
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dst_broadcast_matching() {
+        let mut acl_config = Acl::default();
+        let mut acl_v1 = AclV1::default();
+
+        let mut chain = Chain {
+            name: "outbound".to_string(),
+            chain_type: ChainType::Outbound as i32,
+            enabled: true,
+            default_action: Action::Allow as i32,
+            ..Default::default()
+        };
+
+        chain.rules.push(Rule {
+            name: "drop_broadcast".to_string(),
+            priority: 100,
+            enabled: true,
+            action: Action::Drop as i32,
+            protocol: Protocol::Udp as i32,
+            dst_is_broadcast: Some(true),
+            ..Default::default()
+        });
+
+        acl_v1.chains.push(chain);
+        acl_config.acl_v1 = Some(acl_v1);
+
+        let processor = AclProcessor::new(acl_config);
+
+        let mut pkt = create_test_packet_info();
+        pkt.protocol = Protocol::Udp;
+        pkt.dst_ip = IpAddr::V4(std::net::Ipv4Addr::BROADCAST);
+        pkt.dst_is_broadcast = true;
+        pkt.dst_is_multicast = false;
+
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Outbound).action,
+            Action::Drop
+        );
+
+        pkt.dst_ip = IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 1));
+        pkt.dst_is_broadcast = false;
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Outbound).action,
             Action::Allow
         );
     }
