@@ -14,7 +14,7 @@ use pnet::packet::{
 };
 
 use crate::common::scoped_task::ScopedTask;
-use crate::proto::acl::{AclStats, Protocol};
+use crate::proto::acl::{AclStats, AppProtocol, Protocol};
 use crate::tunnel::packet_def::PacketType;
 use crate::{
     common::acl_processor::{AclProcessor, AclResult, AclStatKey, AclStatType, PacketInfo},
@@ -29,6 +29,7 @@ struct OutboundAllowRecord {
     src_port: Option<u16>,
     dst_port: Option<u16>,
     protocol: Protocol,
+    app_protocol: AppProtocol,
 }
 
 impl OutboundAllowRecord {
@@ -39,6 +40,7 @@ impl OutboundAllowRecord {
             src_port: p.src_port,
             dst_port: p.dst_port,
             protocol: p.protocol,
+            app_protocol: p.app_protocol,
         }
     }
 
@@ -49,6 +51,7 @@ impl OutboundAllowRecord {
             src_port: p.dst_port,
             dst_port: p.src_port,
             protocol: p.protocol,
+            app_protocol: p.app_protocol,
         }
     }
 }
@@ -73,6 +76,101 @@ impl Default for AclFilter {
 }
 
 impl AclFilter {
+    #[inline]
+    fn detect_udp_app_protocol(payload: &[u8]) -> AppProtocol {
+        // WebRTC: STUN first (ICE)
+        if Self::is_stun(payload) {
+            return AppProtocol::WebRtcStun;
+        }
+
+        // WebRTC: DTLS (handshake / data channel)
+        if Self::is_dtls(payload) {
+            return AppProtocol::WebRtcDtls;
+        }
+
+        // RakNet (Minecraft Bedrock etc)
+        if Self::is_raknet(payload) {
+            return AppProtocol::RakNet;
+        }
+
+        // WebRTC media (SRTP) - best-effort heuristic.
+        if Self::is_rtp(payload) {
+            return AppProtocol::WebRtcRtp;
+        }
+
+        AppProtocol::Unknown
+    }
+
+    #[inline]
+    fn is_stun(payload: &[u8]) -> bool {
+        // RFC 5389: 20-byte header, magic cookie 0x2112A442 at bytes 4..8.
+        if payload.len() < 20 {
+            return false;
+        }
+        if (payload[0] & 0xC0) != 0x00 {
+            return false;
+        }
+        if payload[4..8] != [0x21, 0x12, 0xA4, 0x42] {
+            return false;
+        }
+        let msg_len = u16::from_be_bytes([payload[2], payload[3]]) as usize;
+        20usize
+            .checked_add(msg_len)
+            .is_some_and(|total| total <= payload.len())
+    }
+
+    #[inline]
+    fn is_dtls(payload: &[u8]) -> bool {
+        // DTLS record header is 13 bytes:
+        // type(1) version(2) epoch(2) seq(6) length(2)
+        if payload.len() < 13 {
+            return false;
+        }
+        let content_type = payload[0];
+        if !(20..=23).contains(&content_type) {
+            return false;
+        }
+        let ver_major = payload[1];
+        let ver_minor = payload[2];
+        if ver_major != 0xFE || !(ver_minor == 0xFF || ver_minor == 0xFD) {
+            return false;
+        }
+        let rec_len = u16::from_be_bytes([payload[11], payload[12]]) as usize;
+        13usize
+            .checked_add(rec_len)
+            .is_some_and(|total| total <= payload.len())
+    }
+
+    #[inline]
+    fn is_raknet(payload: &[u8]) -> bool {
+        // RakNet offline message data ID:
+        // 00ffff00fefefefefdfdfdfd12345678
+        const OFFLINE_MAGIC: [u8; 16] = [
+            0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34,
+            0x56, 0x78,
+        ];
+        let scan_len = payload.len().min(80);
+        payload[..scan_len]
+            .windows(OFFLINE_MAGIC.len())
+            .any(|w| w == OFFLINE_MAGIC)
+    }
+
+    #[inline]
+    fn is_rtp(payload: &[u8]) -> bool {
+        // Very conservative RTP v2 check.
+        if payload.len() < 12 {
+            return false;
+        }
+        if (payload[0] & 0xC0) != 0x80 {
+            return false;
+        }
+        // Avoid classifying all-zero buffers (common in random data or padding).
+        if payload[..12].iter().all(|b| *b == 0) {
+            return false;
+        }
+        true
+    }
+
     pub fn new() -> Self {
         let outbound_allow_records = Arc::new(DashMap::new());
         let record_clone = outbound_allow_records.clone();
@@ -150,6 +248,7 @@ impl AclFilter {
         let src_port;
         let dst_port;
         let protocol;
+        let app_protocol;
 
         let ipv4_packet = Ipv4Packet::new(payload)?;
         if ipv4_packet.get_version() == 4 {
@@ -160,6 +259,8 @@ impl AclFilter {
             (src_port, dst_port) = match protocol {
                 IpNextHeaderProtocols::Tcp => {
                     let tcp_packet = TcpPacket::new(ipv4_packet.payload())?;
+                    // TODO: extend to TCP L7 signatures if needed.
+                    app_protocol = AppProtocol::Unknown;
                     (
                         Some(tcp_packet.get_source()),
                         Some(tcp_packet.get_destination()),
@@ -167,12 +268,16 @@ impl AclFilter {
                 }
                 IpNextHeaderProtocols::Udp => {
                     let udp_packet = UdpPacket::new(ipv4_packet.payload())?;
+                    app_protocol = Self::detect_udp_app_protocol(udp_packet.payload());
                     (
                         Some(udp_packet.get_source()),
                         Some(udp_packet.get_destination()),
                     )
                 }
-                _ => (None, None),
+                _ => {
+                    app_protocol = AppProtocol::Unknown;
+                    (None, None)
+                }
             };
         } else if ipv4_packet.get_version() == 6 {
             let ipv6_packet = Ipv6Packet::new(payload)?;
@@ -183,6 +288,7 @@ impl AclFilter {
             (src_port, dst_port) = match protocol {
                 IpNextHeaderProtocols::Tcp => {
                     let tcp_packet = TcpPacket::new(ipv6_packet.payload())?;
+                    app_protocol = AppProtocol::Unknown;
                     (
                         Some(tcp_packet.get_source()),
                         Some(tcp_packet.get_destination()),
@@ -190,12 +296,16 @@ impl AclFilter {
                 }
                 IpNextHeaderProtocols::Udp => {
                     let udp_packet = UdpPacket::new(ipv6_packet.payload())?;
+                    app_protocol = Self::detect_udp_app_protocol(udp_packet.payload());
                     (
                         Some(udp_packet.get_source()),
                         Some(udp_packet.get_destination()),
                     )
                 }
-                _ => (None, None),
+                _ => {
+                    app_protocol = AppProtocol::Unknown;
+                    (None, None)
+                }
             };
         } else {
             return None;
@@ -224,6 +334,7 @@ impl AclFilter {
             src_port,
             dst_port,
             protocol: acl_protocol,
+            app_protocol,
             packet_size: payload.len(),
             src_groups,
             dst_groups,
@@ -249,6 +360,7 @@ impl AclFilter {
                     src_group = packet_info.src_groups.join(","),
                     dst_group = packet_info.dst_groups.join(","),
                     protocol = ?packet_info.protocol,
+                    app_protocol = ?packet_info.app_protocol,
                     action = ?result.action,
                     rule = result.matched_rule_str().as_deref().unwrap_or("unknown"),
                     chain_type = ?chain_type,
@@ -383,5 +495,58 @@ impl AclFilter {
                 false
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_udp_app_protocol_stun() {
+        // STUN Binding Request with zero attributes.
+        let mut buf = vec![0u8; 20];
+        buf[0] = 0x00;
+        buf[1] = 0x01; // Binding Request
+        buf[2] = 0x00;
+        buf[3] = 0x00; // length
+        buf[4..8].copy_from_slice(&[0x21, 0x12, 0xA4, 0x42]); // magic cookie
+        buf[8..20].copy_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // txid
+
+        assert_eq!(
+            AclFilter::detect_udp_app_protocol(&buf),
+            AppProtocol::WebRtcStun
+        );
+    }
+
+    #[test]
+    fn test_detect_udp_app_protocol_dtls() {
+        // Minimal DTLS record header: handshake, DTLS 1.2, length 0.
+        let mut buf = vec![0u8; 13];
+        buf[0] = 22; // handshake
+        buf[1] = 0xFE;
+        buf[2] = 0xFD; // DTLS 1.2
+                       // epoch(2) + seq(6) already zero
+        buf[11] = 0;
+        buf[12] = 0; // length
+
+        assert_eq!(
+            AclFilter::detect_udp_app_protocol(&buf),
+            AppProtocol::WebRtcDtls
+        );
+    }
+
+    #[test]
+    fn test_detect_udp_app_protocol_raknet() {
+        // RakNet offline magic embedded in payload.
+        let buf = [
+            0x01, 0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0x12,
+            0x34, 0x56, 0x78,
+        ];
+
+        assert_eq!(
+            AclFilter::detect_udp_app_protocol(&buf),
+            AppProtocol::RakNet
+        );
     }
 }

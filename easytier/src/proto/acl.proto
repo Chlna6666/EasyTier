@@ -14,6 +14,23 @@ enum Protocol {
   Any = 5;
 }
 
+// App/L7 protocol signatures inferred from packet payload (best-effort).
+// These are used for more fine-grained ACL matching on top of L4 Protocol/ports.
+enum AppProtocol {
+  AppUnspecified = 0;
+  AppAny = 1;
+  Unknown = 2;
+
+  // RakNet (commonly used by Minecraft Bedrock).
+  RakNet = 10;
+
+  // WebRTC related (ICE/STUN/DTLS/SRTP).
+  WebRtc = 20;
+  WebRtcStun = 21;
+  WebRtcDtls = 22;
+  WebRtcRtp = 23;
+}
+
 enum Action {
   Noop = 0;
   Allow = 1;
@@ -71,6 +88,10 @@ message Rule {
   // Group matching criteria
   repeated string source_groups = 14;
   repeated string destination_groups = 15;
+
+  // Optional app/L7 protocol matching. Empty = don't care.
+  // If contains AppAny, app protocol check is skipped.
+  repeated AppProtocol app_protocols = 16;
 }
 
 // Rule chain with metadata and optimization hints

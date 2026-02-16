@@ -160,8 +160,8 @@ fn emit_git_info() {
     }
 
     let commit = run_git(&repo_dir, &["rev-parse", "HEAD"]).unwrap_or_else(|| "unknown".into());
-    let commit_short = run_git(&repo_dir, &["rev-parse", "--short=8", "HEAD"])
-        .unwrap_or_else(|| "unknown".into());
+    let commit_short =
+        run_git(&repo_dir, &["rev-parse", "--short=8", "HEAD"]).unwrap_or_else(|| "unknown".into());
     let describe = run_git(
         &repo_dir,
         &["describe", "--tags", "--always", "--dirty=~", "--abbrev=8"],

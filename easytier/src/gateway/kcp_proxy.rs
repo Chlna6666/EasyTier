@@ -394,6 +394,7 @@ impl KcpProxyDst {
                 src_port: Some(src_socket.port()),
                 dst_port: Some(dst_socket.port()),
                 protocol: Protocol::Tcp,
+                app_protocol: crate::proto::acl::AppProtocol::Unknown,
                 packet_size: conn_data.len(),
                 src_groups,
                 dst_groups,

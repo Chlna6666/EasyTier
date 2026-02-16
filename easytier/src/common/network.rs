@@ -151,14 +151,14 @@ impl InterfaceFilter {
                 .iface
                 .addr
                 .iter()
-            .map(|a| a.ip())
-            .any(|ip| !ip.is_loopback() && !ip.is_unspecified() && !ip.is_multicast())
+                .map(|a| a.ip())
+                .any(|ip| !ip.is_loopback() && !ip.is_unspecified() && !ip.is_multicast())
             && self
-            .iface
-            .mac_addr
-            .as_ref()
-            .map(|m| !m.trim().is_empty() && m != "00:00:00:00:00:00")
-            .unwrap_or(true)
+                .iface
+                .mac_addr
+                .as_ref()
+                .map(|m| !m.trim().is_empty() && m != "00:00:00:00:00:00")
+                .unwrap_or(true)
     }
 }
 

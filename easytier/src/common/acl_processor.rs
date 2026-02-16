@@ -63,6 +63,7 @@ impl RuleId {
 pub struct FastLookupRule {
     pub priority: u32,
     pub protocol: Protocol,
+    pub app_protocols: Vec<AppProtocol>,
     pub src_ip_ranges: Vec<cidr::IpCidr>,
     pub dst_ip_ranges: Vec<cidr::IpCidr>,
     pub src_port_ranges: Vec<(u16, u16)>,
@@ -82,6 +83,7 @@ pub struct FastLookupRule {
 pub struct AclCacheKey {
     pub chain_type: ChainType,
     pub protocol: Protocol,
+    pub app_protocol: AppProtocol,
     pub src_ip: IpAddr,
     pub dst_ip: IpAddr,
     pub src_port: u16,
@@ -95,6 +97,7 @@ impl AclCacheKey {
         Self {
             chain_type,
             protocol: packet_info.protocol,
+            app_protocol: packet_info.app_protocol,
             src_ip: packet_info.src_ip,
             dst_ip: packet_info.dst_ip,
             src_port: packet_info.src_port.unwrap_or(0),
@@ -127,6 +130,7 @@ pub struct PacketInfo {
     pub src_port: Option<u16>,
     pub dst_port: Option<u16>,
     pub protocol: Protocol,
+    pub app_protocol: AppProtocol,
     pub packet_size: usize,
     pub src_groups: Arc<Vec<String>>,
     pub dst_groups: Arc<Vec<String>>,
@@ -648,6 +652,19 @@ impl AclProcessor {
             return false;
         }
 
+        // App protocol check (optional)
+        if !rule.app_protocols.is_empty()
+            && !rule.app_protocols.iter().any(|p| *p == AppProtocol::AppAny)
+        {
+            let matches = rule
+                .app_protocols
+                .iter()
+                .any(|p| Self::app_protocol_matches(*p, packet_info.app_protocol));
+            if !matches {
+                return false;
+            }
+        }
+
         // Source IP check
         if !rule.src_ip_ranges.is_empty() {
             let matches = rule
@@ -727,6 +744,25 @@ impl AclProcessor {
         }
 
         true
+    }
+
+    #[inline]
+    fn app_protocol_matches(rule_proto: AppProtocol, pkt_proto: AppProtocol) -> bool {
+        if rule_proto == AppProtocol::AppAny {
+            return true;
+        }
+
+        if rule_proto == AppProtocol::WebRtc {
+            return matches!(
+                pkt_proto,
+                AppProtocol::WebRtc
+                    | AppProtocol::WebRtcStun
+                    | AppProtocol::WebRtcDtls
+                    | AppProtocol::WebRtcRtp
+            );
+        }
+
+        rule_proto as i32 == pkt_proto as i32
     }
 
     fn conn_track_key(&self, packet_info: &PacketInfo) -> String {
@@ -846,9 +882,16 @@ impl AclProcessor {
             })
             .collect();
 
+        let app_protocols = rule
+            .app_protocols
+            .iter()
+            .filter_map(|v| AppProtocol::try_from(*v).ok())
+            .collect::<Vec<_>>();
+
         FastLookupRule {
             priority: rule.priority,
             protocol: rule.protocol(),
+            app_protocols,
             src_ip_ranges,
             dst_ip_ranges,
             src_port_ranges,
@@ -1124,6 +1167,7 @@ impl AclRuleBuilder {
                 stateful: true,
                 source_groups: vec![],
                 destination_groups: vec![],
+                app_protocols: vec![],
             };
             let tcp_rule_deny_other = Rule {
                 name: "tcp_whitelist_deny_other".to_string(),
@@ -1141,6 +1185,7 @@ impl AclRuleBuilder {
                 stateful: false,
                 source_groups: vec![],
                 destination_groups: vec![],
+                app_protocols: vec![],
             };
             inbound_chain.rules.push(tcp_rule);
             inbound_chain.rules.push(tcp_rule_deny_other);
@@ -1166,6 +1211,7 @@ impl AclRuleBuilder {
                 stateful: false,
                 source_groups: vec![],
                 destination_groups: vec![],
+                app_protocols: vec![],
             };
             let udp_rule_deny_other = Rule {
                 name: "udp_whitelist_deny_other".to_string(),
@@ -1183,6 +1229,7 @@ impl AclRuleBuilder {
                 stateful: false,
                 source_groups: vec![],
                 destination_groups: vec![],
+                app_protocols: vec![],
             };
             inbound_chain.rules.push(udp_rule);
             inbound_chain.rules.push(udp_rule_deny_other);
@@ -1376,6 +1423,7 @@ mod tests {
             src_port: Some(12345),
             dst_port: Some(80),
             protocol: Protocol::Tcp,
+            app_protocol: AppProtocol::Unknown,
             packet_size: 1024,
             src_groups: Arc::new(vec![]),
             dst_groups: Arc::new(vec![]),
@@ -1576,6 +1624,7 @@ mod tests {
             src_port: Some(12345),
             dst_port: Some(53),      // DNS
             protocol: Protocol::Udp, // UDP
+            app_protocol: AppProtocol::Unknown,
             packet_size: 512,
             src_groups: Arc::new(vec![]),
             dst_groups: Arc::new(vec![]),
@@ -1588,6 +1637,7 @@ mod tests {
             src_port: Some(12345),
             dst_port: Some(80),      // HTTP
             protocol: Protocol::Tcp, // TCP
+            app_protocol: AppProtocol::Unknown,
             packet_size: 1024,
             src_groups: Arc::new(vec![]),
             dst_groups: Arc::new(vec![]),
@@ -1684,5 +1734,95 @@ mod tests {
             result2.log_context,
             Some(AclLogContext::RateLimitDrop)
         ));
+    }
+
+    #[tokio::test]
+    async fn test_app_protocol_matching_raknet() {
+        let mut acl_config = Acl::default();
+        let mut acl_v1 = AclV1::default();
+
+        let mut chain = Chain {
+            name: "inbound".to_string(),
+            chain_type: ChainType::Inbound as i32,
+            enabled: true,
+            default_action: Action::Allow as i32,
+            ..Default::default()
+        };
+
+        chain.rules.push(Rule {
+            name: "drop_raknet".to_string(),
+            priority: 100,
+            enabled: true,
+            action: Action::Drop as i32,
+            protocol: Protocol::Udp as i32,
+            app_protocols: vec![AppProtocol::RakNet as i32],
+            ..Default::default()
+        });
+
+        acl_v1.chains.push(chain);
+        acl_config.acl_v1 = Some(acl_v1);
+
+        let processor = AclProcessor::new(acl_config);
+
+        let mut pkt = create_test_packet_info();
+        pkt.protocol = Protocol::Udp;
+        pkt.dst_port = Some(19132);
+        pkt.app_protocol = AppProtocol::RakNet;
+        let r1 = processor.process_packet(&pkt, ChainType::Inbound);
+        assert_eq!(r1.action, Action::Drop);
+
+        pkt.app_protocol = AppProtocol::Unknown;
+        let r2 = processor.process_packet(&pkt, ChainType::Inbound);
+        assert_eq!(r2.action, Action::Allow);
+    }
+
+    #[tokio::test]
+    async fn test_app_protocol_matching_webrtc_alias() {
+        let mut acl_config = Acl::default();
+        let mut acl_v1 = AclV1::default();
+
+        let mut chain = Chain {
+            name: "inbound".to_string(),
+            chain_type: ChainType::Inbound as i32,
+            enabled: true,
+            default_action: Action::Allow as i32,
+            ..Default::default()
+        };
+
+        chain.rules.push(Rule {
+            name: "drop_webrtc".to_string(),
+            priority: 100,
+            enabled: true,
+            action: Action::Drop as i32,
+            protocol: Protocol::Udp as i32,
+            app_protocols: vec![AppProtocol::WebRtc as i32],
+            ..Default::default()
+        });
+
+        acl_v1.chains.push(chain);
+        acl_config.acl_v1 = Some(acl_v1);
+
+        let processor = AclProcessor::new(acl_config);
+
+        let mut pkt = create_test_packet_info();
+        pkt.protocol = Protocol::Udp;
+
+        pkt.app_protocol = AppProtocol::WebRtcStun;
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Inbound).action,
+            Action::Drop
+        );
+
+        pkt.app_protocol = AppProtocol::WebRtcDtls;
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Inbound).action,
+            Action::Drop
+        );
+
+        pkt.app_protocol = AppProtocol::Unknown;
+        assert_eq!(
+            processor.process_packet(&pkt, ChainType::Inbound).action,
+            Action::Allow
+        );
     }
 }

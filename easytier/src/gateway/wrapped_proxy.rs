@@ -17,7 +17,7 @@ use crate::{
     common::{acl_processor::PacketInfo, error::Result},
     gateway::tcp_proxy::{NatDstConnector, TcpProxy},
     peers::{acl_filter::AclFilter, NicPacketFilter},
-    proto::acl::{Action, ChainType},
+    proto::acl::{Action, AppProtocol, ChainType},
     tunnel::packet_def::ZCPacket,
 };
 
@@ -32,6 +32,8 @@ impl ProxyAclHandler {
     pub fn handle_packet(&self, buf: &[u8]) -> Result<()> {
         let mut packet_info = self.packet_info.clone();
         packet_info.packet_size = buf.len();
+        // For stream proxies we only have TCP bytes here; treat as unknown app protocol.
+        packet_info.app_protocol = AppProtocol::Unknown;
         let ret = self
             .acl_filter
             .get_processor()
