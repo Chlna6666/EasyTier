@@ -17,7 +17,7 @@ use bytes::BytesMut;
 use crossbeam::atomic::AtomicCell;
 use dashmap::DashMap;
 use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
-use rand::RngCore;
+use rand_core_06::RngCore;
 use tokio::{net::UdpSocket, sync::Mutex, task::JoinSet};
 
 use super::TunnelInfo;
@@ -357,7 +357,7 @@ impl WgPeer {
                 config.peer_public_key,
                 None,
                 None,
-                rand::thread_rng().next_u32(),
+                rand_core_06::OsRng.next_u32(),
                 None,
             ))),
 
@@ -775,10 +775,10 @@ pub mod tests {
     use boringtun::*;
 
     pub fn create_wg_config() -> (WgConfig, WgConfig) {
-        let my_secret_key = x25519::StaticSecret::random_from_rng(rand::thread_rng());
+        let my_secret_key = x25519::StaticSecret::random_from_rng(rand_core_06::OsRng);
         let my_public_key = x25519::PublicKey::from(&my_secret_key);
 
-        let their_secret_key = x25519::StaticSecret::random_from_rng(rand::thread_rng());
+        let their_secret_key = x25519::StaticSecret::random_from_rng(rand_core_06::OsRng);
         let their_public_key = x25519::PublicKey::from(&their_secret_key);
 
         let server_cfg = WgConfig {

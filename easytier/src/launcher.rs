@@ -972,43 +972,44 @@ mod tests {
 
     #[test]
     fn test_network_config_conversion_random() -> Result<(), anyhow::Error> {
-        let mut rng = rand::thread_rng();
+        use rand::RngExt as _;
+        let mut rng = rand::rng();
 
         for _ in 0..100 {
             let config = gen_default_config();
 
             config.set_id(uuid::Uuid::new_v4());
 
-            config.set_dhcp(rng.gen_bool(0.5));
+            config.set_dhcp(rng.random_bool(0.5));
 
-            if rng.gen_bool(0.7) {
-                let hostname = format!("host-{}", rng.gen::<u16>());
+            if rng.random_bool(0.7) {
+                let hostname = format!("host-{}", rng.random::<u16>());
                 config.set_hostname(Some(hostname));
             }
 
             config.set_network_identity(crate::common::config::NetworkIdentity::new(
-                format!("network-{}", rng.gen::<u16>()),
-                format!("secret-{}", rng.gen::<u64>()),
+                format!("network-{}", rng.random::<u16>()),
+                format!("secret-{}", rng.random::<u64>()),
             ));
             config.set_inst_name(config.get_network_identity().network_name.clone());
 
             if !config.get_dhcp() {
                 let addr = Ipv4Addr::new(
-                    rng.gen_range(1..254),
-                    rng.gen_range(0..255),
-                    rng.gen_range(0..255),
-                    rng.gen_range(1..254),
+                    rng.random_range(1..254),
+                    rng.random_range(0..255),
+                    rng.random_range(0..255),
+                    rng.random_range(1..254),
                 );
-                let prefix_len = rng.gen_range(1..31);
+                let prefix_len = rng.random_range(1..31);
                 let ipv4 = format!("{}/{}", addr, prefix_len).parse().unwrap();
                 config.set_ipv4(Some(ipv4));
             }
 
-            let peer_count = rng.gen_range(0..3);
+            let peer_count = rng.random_range(0..3);
             let mut peers = Vec::new();
             for _ in 0..peer_count {
-                let port = rng.gen_range(10000..60000);
-                let protocol = if rng.gen_bool(0.5) { "tcp" } else { "udp" };
+                let port = rng.random_range(10000..60000);
+                let protocol = if rng.random_bool(0.5) { "tcp" } else { "udp" };
                 let uri = format!("{}://127.0.0.1:{}", protocol, port)
                     .parse()
                     .unwrap();
@@ -1019,37 +1020,37 @@ mod tests {
             }
             config.set_peers(peers);
 
-            if rng.gen_bool(0.7) {
-                let listener_count = rng.gen_range(0..3);
+            if rng.random_bool(0.7) {
+                let listener_count = rng.random_range(0..3);
                 let mut listeners = Vec::new();
                 for _ in 0..listener_count {
-                    let port = rng.gen_range(10000..60000);
-                    let protocol = if rng.gen_bool(0.5) { "tcp" } else { "udp" };
+                    let port = rng.random_range(10000..60000);
+                    let protocol = if rng.random_bool(0.5) { "tcp" } else { "udp" };
                     listeners.push(format!("{}://0.0.0.0:{}", protocol, port).parse().unwrap());
                 }
                 config.set_listeners(listeners);
             }
 
-            if rng.gen_bool(0.6) {
-                let proxy_count = rng.gen_range(0..3);
+            if rng.random_bool(0.6) {
+                let proxy_count = rng.random_range(0..3);
                 for _ in 0..proxy_count {
                     let network = format!(
                         "{}.{}.{}.0/{}",
-                        rng.gen_range(1..254),
-                        rng.gen_range(0..255),
-                        rng.gen_range(0..255),
-                        rng.gen_range(24..30)
+                        rng.random_range(1..254),
+                        rng.random_range(0..255),
+                        rng.random_range(0..255),
+                        rng.random_range(24..30)
                     )
                     .parse::<cidr::Ipv4Cidr>()
                     .unwrap();
 
-                    let mapped_network = if rng.gen_bool(0.5) {
+                    let mapped_network = if rng.random_bool(0.5) {
                         Some(
                             format!(
                                 "{}.{}.{}.0/{}",
-                                rng.gen_range(1..254),
-                                rng.gen_range(0..255),
-                                rng.gen_range(0..255),
+                                rng.random_range(1..254),
+                                rng.random_range(0..255),
+                                rng.random_range(0..255),
                                 network.network_length()
                             )
                             .parse::<cidr::Ipv4Cidr>()
@@ -1062,82 +1063,82 @@ mod tests {
                 }
             }
 
-            if rng.gen_bool(0.5) {
+            if rng.random_bool(0.5) {
                 let vpn_network = format!(
                     "{}.{}.{}.0/{}",
-                    rng.gen_range(10..173),
-                    rng.gen_range(0..255),
-                    rng.gen_range(0..255),
-                    rng.gen_range(24..30)
+                    rng.random_range(10..173),
+                    rng.random_range(0..255),
+                    rng.random_range(0..255),
+                    rng.random_range(24..30)
                 );
-                let vpn_port = rng.gen_range(10000..60000);
+                let vpn_port = rng.random_range(10000..60000);
                 config.set_vpn_portal_config(crate::common::config::VpnPortalConfig {
                     client_cidr: vpn_network.parse().unwrap(),
                     wireguard_listen: format!("0.0.0.0:{}", vpn_port).parse().unwrap(),
                 });
             }
 
-            if rng.gen_bool(0.6) {
-                let route_count = rng.gen_range(1..3);
+            if rng.random_bool(0.6) {
+                let route_count = rng.random_range(1..3);
                 let mut routes = Vec::new();
                 for _ in 0..route_count {
                     let route = format!(
                         "{}.{}.{}.0/{}",
-                        rng.gen_range(1..254),
-                        rng.gen_range(0..255),
-                        rng.gen_range(0..255),
-                        rng.gen_range(24..30)
+                        rng.random_range(1..254),
+                        rng.random_range(0..255),
+                        rng.random_range(0..255),
+                        rng.random_range(24..30)
                     );
                     routes.push(route.parse().unwrap());
                 }
                 config.set_routes(Some(routes));
             }
 
-            if rng.gen_bool(0.4) {
-                let node_count = rng.gen_range(1..3);
+            if rng.random_bool(0.4) {
+                let node_count = rng.random_range(1..3);
                 let mut nodes = Vec::new();
                 for _ in 0..node_count {
                     let ip = Ipv4Addr::new(
-                        rng.gen_range(1..254),
-                        rng.gen_range(0..255),
-                        rng.gen_range(0..255),
-                        rng.gen_range(1..254),
+                        rng.random_range(1..254),
+                        rng.random_range(0..255),
+                        rng.random_range(0..255),
+                        rng.random_range(1..254),
                     );
                     nodes.push(IpAddr::V4(ip));
                     // gen ipv6
                     let ip = Ipv6Addr::new(
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
-                        rng.gen_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
+                        rng.random_range(0..65535),
                     );
                     nodes.push(IpAddr::V6(ip));
                 }
                 config.set_exit_nodes(nodes);
             }
 
-            if rng.gen_bool(0.5) {
-                let socks5_port = rng.gen_range(10000..60000);
+            if rng.random_bool(0.5) {
+                let socks5_port = rng.random_range(10000..60000);
                 config.set_socks5_portal(Some(
                     format!("socks5://0.0.0.0:{}", socks5_port).parse().unwrap(),
                 ));
             }
 
-            if rng.gen_bool(0.4) {
-                let count = rng.gen_range(1..3);
+            if rng.random_bool(0.4) {
+                let count = rng.random_range(1..3);
                 let mut mapped_listeners = Vec::new();
                 for _ in 0..count {
-                    let port = rng.gen_range(10000..60000);
+                    let port = rng.random_range(10000..60000);
                     mapped_listeners.push(format!("tcp://0.0.0.0:{}", port).parse().unwrap());
                 }
                 config.set_mapped_listeners(Some(mapped_listeners));
             }
 
-            if rng.gen_bool(0.3) {
+            if rng.random_bool(0.3) {
                 config.set_secure_mode(Some(SecureModeConfig {
                     enabled: true,
                     local_private_key: None,
@@ -1145,38 +1146,38 @@ mod tests {
                 }));
             }
 
-            if rng.gen_bool(0.9) {
+            if rng.random_bool(0.9) {
                 let mut flags = crate::common::config::gen_default_flags();
-                flags.latency_first = rng.gen_bool(0.5);
-                flags.dev_name = format!("etun{}", rng.gen_range(0..10));
-                flags.use_smoltcp = rng.gen_bool(0.3);
-                flags.enable_ipv6 = rng.gen_bool(0.8);
-                flags.enable_kcp_proxy = rng.gen_bool(0.5);
-                flags.disable_kcp_input = rng.gen_bool(0.3);
-                flags.enable_quic_proxy = rng.gen_bool(0.5);
-                flags.disable_quic_input = rng.gen_bool(0.3);
-                flags.disable_p2p = rng.gen_bool(0.2);
-                flags.p2p_only = rng.gen_bool(0.2);
-                flags.bind_device = rng.gen_bool(0.3);
-                flags.no_tun = rng.gen_bool(0.1);
-                flags.enable_exit_node = rng.gen_bool(0.4);
-                flags.relay_all_peer_rpc = rng.gen_bool(0.5);
-                flags.multi_thread = rng.gen_bool(0.7);
-                flags.proxy_forward_by_system = rng.gen_bool(0.3);
-                flags.enable_encryption = rng.gen_bool(0.8);
-                flags.disable_tcp_hole_punching = rng.gen_bool(0.2);
-                flags.disable_udp_hole_punching = rng.gen_bool(0.2);
-                flags.accept_dns = rng.gen_bool(0.6);
-                flags.mtu = rng.gen_range(1200..1500);
-                flags.private_mode = rng.gen_bool(0.3);
+                flags.latency_first = rng.random_bool(0.5);
+                flags.dev_name = format!("etun{}", rng.random_range(0..10));
+                flags.use_smoltcp = rng.random_bool(0.3);
+                flags.enable_ipv6 = rng.random_bool(0.8);
+                flags.enable_kcp_proxy = rng.random_bool(0.5);
+                flags.disable_kcp_input = rng.random_bool(0.3);
+                flags.enable_quic_proxy = rng.random_bool(0.5);
+                flags.disable_quic_input = rng.random_bool(0.3);
+                flags.disable_p2p = rng.random_bool(0.2);
+                flags.p2p_only = rng.random_bool(0.2);
+                flags.bind_device = rng.random_bool(0.3);
+                flags.no_tun = rng.random_bool(0.1);
+                flags.enable_exit_node = rng.random_bool(0.4);
+                flags.relay_all_peer_rpc = rng.random_bool(0.5);
+                flags.multi_thread = rng.random_bool(0.7);
+                flags.proxy_forward_by_system = rng.random_bool(0.3);
+                flags.enable_encryption = rng.random_bool(0.8);
+                flags.disable_tcp_hole_punching = rng.random_bool(0.2);
+                flags.disable_udp_hole_punching = rng.random_bool(0.2);
+                flags.accept_dns = rng.random_bool(0.6);
+                flags.mtu = rng.random_range(1200..1500);
+                flags.private_mode = rng.random_bool(0.3);
 
-                if rng.gen_bool(0.4) {
-                    flags.relay_network_whitelist = (0..rng.gen_range(1..3))
+                if rng.random_bool(0.4) {
+                    flags.relay_network_whitelist = (0..rng.random_range(1..3))
                         .map(|_| {
                             format!(
                                 "{}.{}.0.0/16",
-                                rng.gen_range(10..192),
-                                rng.gen_range(0..255)
+                                rng.random_range(10..192),
+                                rng.random_range(0..255)
                             )
                         })
                         .collect::<Vec<_>>()

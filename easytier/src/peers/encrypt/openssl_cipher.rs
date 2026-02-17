@@ -1,5 +1,5 @@
 use openssl::symm::{Cipher, Crypter, Mode};
-use rand::RngCore;
+use rand_core_06::RngCore;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 use crate::tunnel::packet_def::ZCPacket;
@@ -167,7 +167,7 @@ impl Encryptor for OpenSslCipher {
             }
             tail.nonce[..nonce_size].copy_from_slice(nonce);
         } else {
-            rand::thread_rng().fill_bytes(&mut tail.nonce[..nonce_size]);
+            rand_core_06::OsRng.fill_bytes(&mut tail.nonce[..nonce_size]);
         }
 
         let mut encrypter =

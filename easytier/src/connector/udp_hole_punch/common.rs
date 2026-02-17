@@ -29,7 +29,7 @@ use crate::{
 pub(crate) const HOLE_PUNCH_PACKET_BODY_LEN: u16 = 16;
 
 fn generate_shuffled_port_vec() -> Vec<u16> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut port_vec: Vec<u16> = (1..=65535).collect();
     port_vec.shuffle(&mut rng);
     port_vec
@@ -250,7 +250,7 @@ impl UdpSocketArray {
                         continue;
                     }
 
-                    let Some(p) = UDPTunnelHeader::ref_from_prefix(&buf) else {
+                    let Ok((p, _)) = UDPTunnelHeader::ref_from_prefix(&buf) else {
                         continue;
                     };
 

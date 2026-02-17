@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use rand::{thread_rng, Rng};
+use rand::RngExt as _;
 use tokio::{
     sync::broadcast,
     task::JoinSet,
@@ -101,7 +101,7 @@ impl PingIntervalController {
         self.backoff_idx = std::cmp::min(self.backoff_idx + 1, self.max_backoff_idx);
 
         // use this makes two peers not pingpong at the same time
-        if self.backoff_idx > self.max_backoff_idx - 2 && thread_rng().gen_bool(0.2) {
+        if self.backoff_idx > self.max_backoff_idx - 2 && rand::rng().random_bool(0.2) {
             self.backoff_idx -= 1;
         }
 

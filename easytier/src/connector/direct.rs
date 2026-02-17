@@ -36,7 +36,7 @@ use crate::{
 };
 
 use anyhow::Context;
-use rand::Rng;
+use rand::RngExt as _;
 use tokio::{net::UdpSocket, task::JoinSet, time::timeout};
 use url::Host;
 
@@ -227,7 +227,6 @@ impl DirectConnectorManagerData {
         dst_peer_id: PeerId,
         addr: String,
     ) -> Result<(), Error> {
-        let mut rand_gen = rand::rngs::OsRng;
         let backoff_ms = [1000, 2000, 4000];
         let mut backoff_idx = 0;
 
@@ -259,14 +258,14 @@ impl DirectConnectorManagerData {
             }
 
             if backoff_idx < backoff_ms.len() {
-                let delta = backoff_ms[backoff_idx] >> 1;
+                let base_ms = backoff_ms[backoff_idx] as i64;
+                let delta = base_ms >> 1;
                 assert!(delta > 0);
-                assert!(delta < backoff_ms[backoff_idx]);
+                assert!(delta < base_ms);
 
-                tokio::time::sleep(Duration::from_millis(
-                    (backoff_ms[backoff_idx] + rand_gen.gen_range(-delta..delta)) as u64,
-                ))
-                .await;
+                let jitter_ms: i64 = rand::rng().random_range(-delta..delta);
+                tokio::time::sleep(Duration::from_millis((base_ms + jitter_ms).max(0) as u64))
+                    .await;
 
                 backoff_idx += 1;
                 continue;

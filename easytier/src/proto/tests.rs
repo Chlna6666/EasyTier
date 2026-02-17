@@ -96,14 +96,13 @@ impl TestContext {
 }
 
 fn random_string(len: usize) -> String {
-    use rand::distributions::Alphanumeric;
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let s: Vec<u8> = std::iter::repeat(())
-        .map(|()| rng.sample(Alphanumeric))
+    use rand::distr::Distribution as _;
+    let mut rng = rand::rng();
+    rand::distr::Alphanumeric
+        .sample_iter(&mut rng)
         .take(len)
-        .collect();
-    String::from_utf8(s).unwrap()
+        .map(char::from)
+        .collect()
 }
 
 #[tokio::test]

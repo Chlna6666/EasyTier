@@ -721,7 +721,7 @@ impl Instance {
 
     // Warning, if there is an IP conflict in the network when using DHCP, the IP will be automatically changed.
     fn check_dhcp_ip_conflict(&self) {
-        use rand::Rng;
+        use rand::RngExt as _;
         let peer_manager_c = Arc::downgrade(&self.peer_manager.clone());
         let global_ctx_c = self.get_global_ctx();
         #[cfg(feature = "tun")]
@@ -751,7 +751,7 @@ impl Instance {
                     next_sleep_time = 1;
                     continue;
                 } else {
-                    next_sleep_time = rand::thread_rng().gen_range(5..10);
+                    next_sleep_time = rand::rng().random_range(5..10);
                 }
 
                 let mut used_ipv4 = HashSet::new();

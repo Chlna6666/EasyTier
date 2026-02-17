@@ -89,7 +89,7 @@ impl HttpTunnelConnector {
                 .query_pairs()
                 .filter_map(|x| url::Url::parse(&x.1).ok())
                 .collect::<Vec<_>>();
-            query.shuffle(&mut rand::thread_rng());
+            query.shuffle(&mut rand::rng());
             if !query.is_empty() {
                 tracing::info!("try to create connector by url: {}", query[0]);
                 self.redirect_type = HttpRedirectType::RedirectToQuery;
@@ -140,7 +140,7 @@ impl HttpTunnelConnector {
         tracing::info!("get {} lines of connector urls", lines.len());
 
         // shuffle the lines and pick the usable one
-        lines.shuffle(&mut rand::thread_rng());
+        lines.shuffle(&mut rand::rng());
 
         for line in lines {
             let url = url::Url::parse(line);

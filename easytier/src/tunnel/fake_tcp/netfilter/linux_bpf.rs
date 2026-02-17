@@ -630,7 +630,7 @@ mod tests {
     use pnet::datalink;
     use pnet::packet::tcp::TcpFlags;
     use pnet::util::MacAddr;
-    use rand::Rng;
+    use rand::RngExt as _;
     use std::net::{IpAddr, Ipv4Addr};
     use tokio::time::{timeout, Duration};
 
@@ -717,7 +717,7 @@ mod tests {
             return;
         };
 
-        let dst_port: u16 = rand::thread_rng().gen_range(40000..60000);
+        let dst_port: u16 = rand::rng().random_range(40000..60000);
         let dst_addr = SocketAddr::new(IpAddr::V4(dst_ip), dst_port);
         eprintln!(
             "linux_bpf_tun_receives_matching_ipv4_frame: ifname={ifname} dst_addr={dst_addr} mac={mac}"
@@ -769,7 +769,7 @@ mod tests {
             return;
         };
 
-        let dst_port: u16 = rand::thread_rng().gen_range(40000..60000);
+        let dst_port: u16 = rand::rng().random_range(40000..60000);
         let dst_addr = SocketAddr::new(IpAddr::V4(dst_ip), dst_port);
         eprintln!(
             "linux_bpf_tun_filters_out_non_matching_ipv4_frame: ifname={ifname} dst_addr={dst_addr} mac={mac}"

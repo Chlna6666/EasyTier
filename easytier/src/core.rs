@@ -29,7 +29,7 @@ use anyhow::Context;
 use base64::{prelude::BASE64_STANDARD, Engine as _};
 use cidr::IpCidr;
 use clap::{CommandFactory, Parser};
-use rand::rngs::OsRng;
+use rand_core_06::OsRng;
 use rust_i18n::t;
 use tokio::io::AsyncReadExt;
 

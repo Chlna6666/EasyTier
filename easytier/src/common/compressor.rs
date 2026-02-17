@@ -7,7 +7,7 @@ use std::cell::RefCell;
 #[cfg(feature = "zstd")]
 use zstd::bulk;
 
-use zerocopy::{AsBytes as _, FromBytes as _};
+use zerocopy::{FromBytes as _, IntoBytes as _};
 
 use crate::tunnel::packet_def::{CompressorAlgo, CompressorTail, ZCPacket, COMPRESSOR_TAIL_SIZE};
 
@@ -142,9 +142,8 @@ impl Compressor for DefaultCompressor {
 
         let text_len = payload_len - COMPRESSOR_TAIL_SIZE;
 
-        let tail = CompressorTail::ref_from_suffix(zc_packet.payload())
-            .unwrap()
-            .clone();
+        let (_, tail) = CompressorTail::ref_from_suffix(zc_packet.payload()).unwrap();
+        let tail = tail.clone();
 
         let algo = tail
             .get_algo()

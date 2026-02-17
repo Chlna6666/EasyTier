@@ -1,9 +1,7 @@
 use bytes::Bytes;
 use bytes::BytesMut;
 use zerocopy::byteorder::*;
-use zerocopy::AsBytes;
-use zerocopy::FromBytes;
-use zerocopy::FromZeroes;
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 type DefaultEndian = LittleEndian;
 
@@ -13,13 +11,13 @@ const fn max(a: usize, b: usize) -> usize {
 
 // TCP TunnelHeader
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct TCPTunnelHeader {
     pub len: U32<DefaultEndian>,
 }
 pub const TCP_TUNNEL_HEADER_SIZE: usize = std::mem::size_of::<TCPTunnelHeader>();
 
-#[derive(AsBytes, FromZeroes, Clone, Debug)]
+#[derive(IntoBytes, FromZeros, KnownLayout, Immutable, Unaligned, Clone, Copy, Debug)]
 #[repr(u8)]
 pub enum UdpPacketType {
     Invalid = 0,
@@ -33,14 +31,14 @@ pub enum UdpPacketType {
 }
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct V6HolePunchPacket {
     pub dst_ipv6: [u8; 16],
     pub dst_port: U16<DefaultEndian>,
 }
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct UDPTunnelHeader {
     pub conn_id: U32<DefaultEndian>,
     pub msg_type: u8,
@@ -50,13 +48,13 @@ pub struct UDPTunnelHeader {
 pub const UDP_TUNNEL_HEADER_SIZE: usize = std::mem::size_of::<UDPTunnelHeader>();
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct WGTunnelHeader {
     pub ipv4_header: [u8; 20],
 }
 pub const WG_TUNNEL_HEADER_SIZE: usize = std::mem::size_of::<WGTunnelHeader>();
 
-#[derive(AsBytes, FromZeroes, Copy, Clone, Debug)]
+#[derive(IntoBytes, FromZeros, KnownLayout, Immutable, Unaligned, Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum PacketType {
     Invalid = 0,
@@ -100,7 +98,7 @@ bitflags::bitflags! {
 }
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct PeerManagerHeader {
     pub from_peer_id: U32<DefaultEndian>,
     pub to_peer_id: U32<DefaultEndian>,
@@ -236,7 +234,7 @@ impl PeerManagerHeader {
 }
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct ForeignNetworkPacketHeader {
     pub header_len: U16<DefaultEndian>,
     pub dst_peer_id: U32<DefaultEndian>,
@@ -277,14 +275,16 @@ impl ForeignNetworkPacketHeader {
 
 // reserve the space for aes tag and nonce
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct AesGcmTail {
     pub tag: [u8; 16],
     pub nonce: [u8; 12],
 }
 pub const AES_GCM_ENCRYPTION_RESERVED: usize = std::mem::size_of::<AesGcmTail>();
 
-#[derive(AsBytes, FromZeroes, Clone, Debug, Copy, PartialEq, Hash, Eq)]
+#[derive(
+    IntoBytes, FromZeros, KnownLayout, Immutable, Unaligned, Clone, Copy, Debug, PartialEq, Hash, Eq,
+)]
 #[repr(u8)]
 pub enum CompressorAlgo {
     None = 0,
@@ -293,7 +293,7 @@ pub enum CompressorAlgo {
 }
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct CompressorTail {
     pub algo: u8,
 }
@@ -523,6 +523,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .peer_manager_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     pub fn mut_tcp_tunnel_header(&mut self) -> Option<&mut TCPTunnelHeader> {
@@ -532,6 +534,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .tcp_tunnel_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     pub fn mut_udp_tunnel_header(&mut self) -> Option<&mut UDPTunnelHeader> {
@@ -541,6 +545,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .udp_tunnel_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     pub fn mut_wg_tunnel_header(&mut self) -> Option<&mut WGTunnelHeader> {
@@ -550,6 +556,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .wg_tunnel_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     // ref versions
@@ -568,6 +576,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .peer_manager_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     pub fn tcp_tunnel_header(&self) -> Option<&TCPTunnelHeader> {
@@ -577,6 +587,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .tcp_tunnel_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     pub fn udp_tunnel_header(&self) -> Option<&UDPTunnelHeader> {
@@ -586,6 +598,8 @@ impl ZCPacket {
                 .get_packet_offsets()
                 .udp_tunnel_header_offset..],
         )
+        .ok()
+        .map(|(hdr, _rest)| hdr)
     }
 
     pub fn udp_payload(&self) -> &[u8] {
@@ -698,6 +712,8 @@ impl ZCPacket {
         if self.peer_manager_header().unwrap().packet_type == PacketType::ForeignNetworkPacket as u8
         {
             ForeignNetworkPacketHeader::ref_from_prefix(self.payload())
+                .ok()
+                .map(|(hdr, _rest)| hdr)
         } else {
             None
         }

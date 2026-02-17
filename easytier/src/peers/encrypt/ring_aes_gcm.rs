@@ -1,7 +1,7 @@
-use rand::RngCore;
+use rand_core_06::RngCore;
 use ring::aead::{self};
 use ring::aead::{LessSafeKey, UnboundKey};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::{FromBytes, IntoBytes};
 
 use crate::tunnel::packet_def::{AesGcmTail, ZCPacket, AES_GCM_ENCRYPTION_RESERVED};
 
@@ -64,7 +64,7 @@ impl Encryptor for AesGcmCipher {
 
         let text_and_tag_len = payload_len - AES_GCM_ENCRYPTION_RESERVED + 16;
 
-        let aes_tail = AesGcmTail::ref_from_suffix(zc_packet.payload()).unwrap();
+        let (_, aes_tail) = AesGcmTail::ref_from_suffix(zc_packet.payload()).unwrap();
         let nonce = aead::Nonce::assume_unique_for_key(aes_tail.nonce);
 
         let rs = match &self.cipher {
@@ -114,7 +114,7 @@ impl Encryptor for AesGcmCipher {
             }
             tail.nonce.copy_from_slice(nonce);
         } else {
-            rand::thread_rng().fill_bytes(&mut tail.nonce);
+            rand_core_06::OsRng.fill_bytes(&mut tail.nonce);
         }
         let nonce = aead::Nonce::assume_unique_for_key(tail.nonce);
 

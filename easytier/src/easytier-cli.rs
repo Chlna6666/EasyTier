@@ -15,7 +15,7 @@ use easytier::ShellType;
 use humansize::format_size;
 use rust_i18n::t;
 use service_manager::*;
-use tabled::settings::{location::ByColumnName, object::Columns, Disable, Modify, Style, Width};
+use tabled::settings::{location::ByColumnName, object::Column, Modify, Remove, Style, Width};
 use terminal_size::{terminal_size, Width as TerminalWidth};
 use unicode_width::UnicodeWidthStr;
 
@@ -1486,7 +1486,7 @@ fn apply_column_drops(table: &mut tabled::Table, drop_indices: &[usize]) {
     let mut indices = drop_indices.to_vec();
     indices.sort_unstable_by(|a, b| b.cmp(a));
     for index in indices {
-        table.with(Disable::column(Columns::single(index)));
+        table.with(Remove::column(Column::from(index)));
     }
 }
 

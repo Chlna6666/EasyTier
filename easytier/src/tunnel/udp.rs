@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use dashmap::DashMap;
 use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
-use rand::{Rng, SeedableRng};
-use zerocopy::{AsBytes, FromBytes};
+use rand::{RngExt as _, SeedableRng};
+use zerocopy::{FromBytes, IntoBytes};
 
 use std::net::SocketAddr;
 use tokio::{
@@ -85,7 +85,8 @@ fn new_sack_packet(conn_id: u32, magic: u64) -> ZCPacket {
 
 pub fn new_hole_punch_packet(tid: u32, buf_len: u16) -> ZCPacket {
     // generate a 128 bytes vec with random data
-    let mut rng = rand::rngs::StdRng::from_entropy();
+    let mut seed_rng = rand::rng();
+    let mut rng = rand::rngs::StdRng::from_rng(&mut seed_rng);
     let mut buf = vec![0u8; buf_len as usize];
     rng.fill(&mut buf[..]);
     new_udp_packet(
@@ -116,7 +117,7 @@ pub fn new_v6_hole_punch_packet(dst: &SocketAddrV6) -> ZCPacket {
 }
 
 fn extrace_dst_addr_from_hole_punch_packet(buf: &[u8]) -> Option<SocketAddrV6> {
-    let body = V6HolePunchPacket::ref_from_prefix(buf)?;
+    let (body, _) = V6HolePunchPacket::ref_from_prefix(buf).ok()?;
     let ip = Ipv6Addr::from(body.dst_ipv6);
     Some(SocketAddrV6::new(ip, body.dst_port.get(), 0, 0))
 }
@@ -943,7 +944,8 @@ mod tests {
         // get a random 100-len buf
         loop {
             let mut buf = vec![0u8; 100];
-            rand::thread_rng().fill(&mut buf[..]);
+            let mut rng = rand::rng();
+            rng.fill(&mut buf[..]);
             socket.send(&buf).await.unwrap();
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }

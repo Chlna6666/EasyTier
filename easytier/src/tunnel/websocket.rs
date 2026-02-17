@@ -9,7 +9,6 @@ use tokio::{
 };
 use tokio_rustls::TlsAcceptor;
 use tokio_websockets::{ClientBuilder, Limits, MaybeTlsStream, Message};
-use zerocopy::AsBytes;
 
 use super::TunnelInfo;
 use crate::tunnel::insecure_tls::get_insecure_tls_client_config;
@@ -53,8 +52,10 @@ async fn map_from_ws_message(
         return Some(Err(TunnelError::InvalidPacket(msg)));
     }
 
+    let payload = msg.into_payload();
+    let payload = payload.as_ref() as &[u8];
     Some(Ok(ZCPacket::new_from_buf(
-        BytesMut::from(msg.into_payload().as_bytes()),
+        BytesMut::from(payload),
         ZCPacketType::DummyTunnel,
     )))
 }
@@ -98,7 +99,8 @@ impl WSTunnelListener {
             let acceptor = TlsAcceptor::from(Arc::new(config));
 
             let stream = acceptor.accept(stream).await?;
-            let (write, read) = server_bulder.accept(stream).await?.split();
+            let (_req, ws_stream) = server_bulder.accept(stream).await?;
+            let (write, read) = ws_stream.split();
 
             Box::new(TunnelWrapper::new(
                 read.filter_map(map_from_ws_message),
@@ -106,7 +108,8 @@ impl WSTunnelListener {
                 Some(info),
             ))
         } else {
-            let (write, read) = server_bulder.accept(stream).await?.split();
+            let (_req, ws_stream) = server_bulder.accept(stream).await?;
+            let (write, read) = ws_stream.split();
             Box::new(TunnelWrapper::new(
                 read.filter_map(map_from_ws_message),
                 write.with(sink_from_zc_packet),

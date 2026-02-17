@@ -59,10 +59,14 @@ impl From<&Error> for rpc_types::error::Error {
             Some(ProtoError::ExecuteError(e)) => {
                 Self::ExecutionError(anyhow::anyhow!(e.error_message.clone()))
             }
-            Some(ProtoError::ProstDecodeError(_)) => {
+            Some(ProtoError::ProstDecodeError(_)) =>
+            {
+                #[allow(deprecated)]
                 Self::DecodeError(DecodeError::new("decode error"))
             }
-            Some(ProtoError::ProstEncodeError(_)) => {
+            Some(ProtoError::ProstEncodeError(_)) =>
+            {
+                #[allow(deprecated)]
                 Self::DecodeError(DecodeError::new("encode error"))
             }
             Some(ProtoError::InvalidMethodIndex(e)) => {

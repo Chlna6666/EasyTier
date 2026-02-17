@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-use byteorder::WriteBytesExt as _;
+use byteorder::{NativeEndian, NetworkEndian, WriteBytesExt as _};
 use bytes::{BufMut, BytesMut};
 use cidr::{Ipv4Inet, Ipv6Inet};
 use futures::{lock::BiLock, ready, SinkExt, Stream, StreamExt};
@@ -35,7 +35,6 @@ use tokio::{
 };
 use tokio_util::bytes::Bytes;
 use tun::{AbstractDevice, AsyncDevice, Configuration, Layer};
-use zerocopy::{NativeEndian, NetworkEndian};
 
 #[cfg(target_os = "windows")]
 use crate::common::ifcfg::RegistryManager;
@@ -550,10 +549,10 @@ impl VirtualNic {
             if !dev_name.is_empty() {
                 config.tun_name(&dev_name);
             } else {
-                use rand::distributions::Distribution as _;
+                use rand::distr::Distribution as _;
                 let c = crate::arch::windows::interface_count()?;
-                let mut rng = rand::thread_rng();
-                let s: String = rand::distributions::Alphanumeric
+                let mut rng = rand::rng();
+                let s: String = rand::distr::Alphanumeric
                     .sample_iter(&mut rng)
                     .take(4)
                     .map(char::from)

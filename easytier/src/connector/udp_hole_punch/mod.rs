@@ -293,7 +293,7 @@ impl UdpHoePunchConnectorData {
         let mut backoff =
             BackOff::new(vec![1000, 1000, 2000, 4000, 4000, 8000, 8000, 16000, 64000]);
         let mut round = 0;
-        let mut port_idx = rand::random();
+        let mut port_idx = rand::random::<u32>() as usize;
 
         loop {
             backoff.sleep_for_next_backoff().await;

@@ -11,7 +11,7 @@ use atomic_shim::AtomicU64;
 use anyhow::anyhow;
 use dashmap::DashMap;
 use hmac::{Hmac, Mac as _};
-use rand::RngCore as _;
+use rand_core_06::RngCore as _;
 use sha2::Sha256;
 
 use crate::{
@@ -432,7 +432,7 @@ impl PeerSession {
 
     pub fn new_root_key() -> [u8; 32] {
         let mut out = [0u8; 32];
-        rand::rngs::OsRng.fill_bytes(&mut out);
+        rand_core_06::OsRng.fill_bytes(&mut out);
         out
     }
 

@@ -1,12 +1,12 @@
-use rand::RngCore;
+use rand_core_06::RngCore;
 use ring::aead::{self, Aad, LessSafeKey, Nonce, UnboundKey};
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use super::{Encryptor, Error};
 use crate::tunnel::packet_def::ZCPacket;
 
 #[repr(C, packed)]
-#[derive(AsBytes, FromBytes, FromZeroes, Clone, Debug, Default)]
+#[derive(IntoBytes, FromBytes, KnownLayout, Immutable, Unaligned, Clone, Debug, Default)]
 pub struct ChaCha20Poly1305Tail {
     pub tag: [u8; 16],
     pub nonce: [u8; 12],
@@ -43,7 +43,8 @@ impl Encryptor for RingChaCha20Cipher {
 
         let text_and_tag_len = payload_len - CHACHA20_POLY1305_ENCRYPTION_RESERVED + 16;
 
-        let chacha20_tail = ChaCha20Poly1305Tail::ref_from_suffix(zc_packet.payload()).unwrap();
+        let (_, chacha20_tail) =
+            ChaCha20Poly1305Tail::ref_from_suffix(zc_packet.payload()).unwrap();
         let nonce = Nonce::assume_unique_for_key(chacha20_tail.nonce);
 
         let rs = self.cipher.open_in_place(
@@ -88,7 +89,7 @@ impl Encryptor for RingChaCha20Cipher {
             }
             tail.nonce.copy_from_slice(nonce);
         } else {
-            rand::thread_rng().fill_bytes(&mut tail.nonce);
+            rand_core_06::OsRng.fill_bytes(&mut tail.nonce);
         }
         let nonce = Nonce::assume_unique_for_key(tail.nonce);
 
@@ -160,7 +161,7 @@ mod tests {
 
         assert_eq!(packet1.payload(), packet2.payload());
 
-        let tail = super::ChaCha20Poly1305Tail::ref_from_suffix(packet1.payload()).unwrap();
+        let (_, tail) = super::ChaCha20Poly1305Tail::ref_from_suffix(packet1.payload()).unwrap();
         assert_eq!(tail.nonce, nonce);
 
         cipher.decrypt(&mut packet1).unwrap();

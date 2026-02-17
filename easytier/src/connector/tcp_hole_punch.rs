@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Error};
-use rand::Rng as _;
+use rand::RngExt as _;
 use tokio::task::JoinSet;
 
 use crate::{
@@ -132,7 +132,7 @@ async fn try_connect_to_remote(
             attempts,
             "tcp hole punch server connect attempt failed"
         );
-        let sleep_ms = rand::thread_rng().gen_range(10..100);
+        let sleep_ms = rand::rng().random_range(10..100);
         tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
     }
 

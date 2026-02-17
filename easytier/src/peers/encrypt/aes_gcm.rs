@@ -1,7 +1,7 @@
 use aes_gcm::aead::consts::{U12, U16};
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{AeadCore, AeadInPlace, Aes128Gcm, Aes256Gcm, Key, KeyInit, Nonce, Tag};
-use rand::rngs::OsRng;
+use rand_core_06::OsRng;
 use zerocopy::{AsBytes, FromBytes};
 
 use crate::tunnel::packet_def::{AesGcmTail, ZCPacket, AES_GCM_ENCRYPTION_RESERVED};

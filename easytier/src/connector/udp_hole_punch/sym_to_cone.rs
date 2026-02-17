@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::Context;
-use rand::{seq::SliceRandom, Rng};
+use rand::{seq::SliceRandom, RngExt as _};
 use tokio::{net::UdpSocket, sync::RwLock};
 use tracing::Level;
 
@@ -49,7 +49,7 @@ pub(crate) struct PunchSymToConeHoleServer {
 impl PunchSymToConeHoleServer {
     pub(crate) fn new(common: Arc<PunchHoleServerCommon>) -> Self {
         let mut shuffled_port_vec: Vec<u16> = (1..=65535).collect();
-        shuffled_port_vec.shuffle(&mut rand::thread_rng());
+        shuffled_port_vec.shuffle(&mut rand::rng());
 
         Self {
             common,
@@ -173,7 +173,7 @@ impl PunchSymToConeHoleServer {
         // send max k1 packets if we are predicting the dst port
         let max_k1: u32 = 180;
         // send max k2 packets if we are sending to random port
-        let mut max_k2: u32 = rand::thread_rng().gen_range(600..800);
+        let mut max_k2: u32 = rand::rng().random_range(600..800);
         if round > 2 {
             max_k2 = max_k2.mul(2).div(round).max(max_k1);
         }
@@ -466,7 +466,7 @@ impl PunchSymToConeHoleClient {
             return Err(anyhow::anyhow!("failed to get public ips"));
         }
 
-        let tid = rand::thread_rng().gen();
+        let tid: u32 = rand::rng().random();
         let packet = new_hole_punch_packet(tid, HOLE_PUNCH_PACKET_BODY_LEN).into_bytes();
         udp_array.add_intreast_tid(tid);
         defer! { udp_array.remove_intreast_tid(tid);}
@@ -533,7 +533,7 @@ impl PunchSymToConeHoleClient {
         if let Ok(Some(next_port_idx)) = punch_task_result {
             *last_port_idx = next_port_idx as usize;
         } else {
-            *last_port_idx = rand::random();
+            *last_port_idx = rand::rng().random::<u32>() as usize;
         }
 
         Ok(ret_tunnel)

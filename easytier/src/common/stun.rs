@@ -88,9 +88,13 @@ impl HostResolverIter {
 
             match lookup_host(&host).await {
                 Ok(ips) => {
-                    self.ips = ips
-                        .filter(|x| if use_ipv6 { x.is_ipv6() } else { x.is_ipv4() })
-                        .choose_multiple(&mut rand::thread_rng(), self.max_ip_per_domain as usize);
+                    // `ThreadRng` is not `Send`, keep it in a short scope to satisfy
+                    // `async_recursion`'s `Send` requirement.
+                    self.ips = {
+                        let mut rng = rand::rng();
+                        ips.filter(|x| if use_ipv6 { x.is_ipv6() } else { x.is_ipv4() })
+                            .sample(&mut rng, self.max_ip_per_domain as usize)
+                    };
 
                     if self.ips.is_empty() {
                         return self.next().await;
@@ -1171,7 +1175,10 @@ impl StunInfoCollector {
                 let udp_servers: Vec<String> = udp_servers
                     .iter()
                     .take(2)
-                    .chain(udp_servers.iter().skip(2).choose(&mut rand::thread_rng()))
+                    .chain({
+                        let mut rng = rand::rng();
+                        udp_servers.iter().skip(2).choose(&mut rng)
+                    })
                     .map(|x| x.to_string())
                     .collect();
 
@@ -1231,7 +1238,10 @@ impl StunInfoCollector {
                 let tcp_servers: Vec<String> = tcp_servers
                     .iter()
                     .take(2)
-                    .chain(tcp_servers.iter().skip(2).choose(&mut rand::thread_rng()))
+                    .chain({
+                        let mut rng = rand::rng();
+                        tcp_servers.iter().skip(2).choose(&mut rng)
+                    })
                     .map(|x| x.to_string())
                     .collect();
 

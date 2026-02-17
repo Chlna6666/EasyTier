@@ -24,7 +24,7 @@ use tokio::{
 };
 
 use tracing::Instrument;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 use snow::{params::NoiseParams, HandshakeState};
 
@@ -626,14 +626,14 @@ impl PeerConn {
         remote_peer_id: PeerId,
         hs: &mut snow::HandshakeState,
     ) -> Result<(), Error> {
+        let payload = pb.encode_to_vec();
         tracing::info!(
-            "send noise msg: {:?}, packet_type: {:?}, from: {:?}, to: {:?}",
-            pb,
+            "send noise msg: len={}, packet_type: {:?}, from: {:?}, to: {:?}",
+            payload.len(),
             packet_type,
             self.my_peer_id,
             remote_peer_id
         );
-        let payload = pb.encode_to_vec();
         let mut msg = vec![0u8; 4096];
         let msg_len = hs
             .write_message(&payload, &mut msg)
@@ -1368,7 +1368,7 @@ impl Drop for PeerConn {
 pub mod tests {
     use std::sync::Arc;
 
-    use rand::rngs::OsRng;
+    use rand_core_06::OsRng;
 
     use super::*;
     use crate::common::config::PeerConfig;

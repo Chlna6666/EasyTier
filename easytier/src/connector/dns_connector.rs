@@ -11,7 +11,7 @@ use crate::{
 use anyhow::Context;
 use dashmap::DashSet;
 use hickory_resolver::proto::rr::rdata::SRV;
-use rand::{seq::SliceRandom, Rng as _};
+use rand::{prelude::IndexedRandom, RngExt as _};
 
 use crate::proto::common::TunnelInfo;
 
@@ -19,8 +19,8 @@ use super::{create_connector_by_url, http_connector::TunnelWithInfo};
 
 fn weighted_choice<T>(options: &[(T, u64)]) -> Option<&T> {
     let total_weight = options.iter().map(|(_, weight)| *weight).sum();
-    let mut rng = rand::thread_rng();
-    let rand_value = rng.gen_range(0..total_weight);
+    let mut rng = rand::rng();
+    let rand_value = rng.random_range(0..total_weight);
     let mut accumulated_weight = 0;
 
     for (item, weight) in options {
@@ -67,14 +67,12 @@ impl DNSTunnelConnector {
             .collect::<Vec<_>>();
 
         // shuffle candidate_urls and get the first one
-        let url = candidate_urls
-            .choose(&mut rand::thread_rng())
-            .with_context(|| {
-                format!(
-                    "no valid url found, txt_data: {}, expecting an url list splitted by space",
-                    txt_data
-                )
-            })?;
+        let url = candidate_urls.choose(&mut rand::rng()).with_context(|| {
+            format!(
+                "no valid url found, txt_data: {}, expecting an url list splitted by space",
+                txt_data
+            )
+        })?;
 
         let connector =
             create_connector_by_url(url.as_str(), &self.global_ctx, self.ip_version).await?;

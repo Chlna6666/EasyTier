@@ -279,7 +279,7 @@ fn prepare_kernel_tcp_socket(stream: &TcpStream) -> Result<()> {
 
     let sf = SockRef::from(&stream);
     sf.set_tcp_keepalive(&ka)?;
-    if let Err(e) = sf.set_nodelay(true) {
+    if let Err(e) = sf.set_tcp_nodelay(true) {
         tracing::warn!("set_nodelay failed, ignore it: {:?}", e);
     }
 

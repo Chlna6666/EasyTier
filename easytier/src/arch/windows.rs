@@ -3,9 +3,8 @@ use std::{io, mem::ManuallyDrop, net::SocketAddr, os::windows::io::AsRawSocket};
 use anyhow::Context;
 use network_interface::NetworkInterfaceConfig;
 use windows::{
-    core::BSTR,
+    core::{BOOL, BSTR},
     Win32::{
-        Foundation::{BOOL, FALSE},
         NetworkManagement::WindowsFirewall::{
             INetFwPolicy2, INetFwRule, NET_FW_ACTION_ALLOW, NET_FW_PROFILE2_DOMAIN,
             NET_FW_PROFILE2_PRIVATE, NET_FW_PROFILE2_PUBLIC, NET_FW_RULE_DIR_IN,
@@ -38,7 +37,7 @@ pub fn disable_connection_reset<S: AsRawSocket>(socket: &S) -> io::Result<()> {
         // We have to ignore it here because it will crash the server.
 
         let mut bytes_returned: u32 = 0;
-        let enable: BOOL = FALSE;
+        let enable = BOOL(0);
 
         let ret = WSAIoctl(
             handle,
@@ -152,7 +151,7 @@ struct ComInitializer;
 
 impl ComInitializer {
     fn new() -> windows::core::Result<Self> {
-        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED)? };
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? };
         Ok(Self)
     }
 }
@@ -354,7 +353,7 @@ fn add_protocol_firewall_rules(
             (*interface_variant.Anonymous.Anonymous).vt = VARENUM(VT_ARRAY.0 | VT_VARIANT.0);
             (*interface_variant.Anonymous.Anonymous).Anonymous.parray = interface_array;
 
-            rule.SetInterfaces(interface_variant)?;
+            rule.SetInterfaces(&interface_variant)?;
 
             // Get rule collection and add new rule
             let rules = policy.Rules()?;
