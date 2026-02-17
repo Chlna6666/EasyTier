@@ -38,16 +38,16 @@ tracing-subscriber = { version = "0.3", features = [
 ] }
 derivative = "2.2.0"
 derive_more = {version = "2.1.1", features = ["full"]}
-console-subscriber = { version = "0.4.1", optional = true }
-thiserror = "1.0"
+console-subscriber = { version = "0.5.0", optional = true }
+thiserror = "2.0.18"
 auto_impl = "1.1.0"
 crossbeam = "0.8.4"
 arc-swap = "1.7"
 time = "0.3"
-toml = "0.8.12"
+toml = "1.0.1+spec-1.1.0"
 chrono = { version = "0.4.37", features = ["serde"] }
 
-gethostname = "0.5.0"
+gethostname = "1.1.0"
 
 futures = { version = "0.3", features = ["bilock", "unstable"] }
 
@@ -62,7 +62,7 @@ dashmap = "6.0"
 timedmap = "=1.0.1"
 
 # for full-path zero-copy
-zerocopy = { version = "0.7.32", features = ["derive", "simd"] }
+zerocopy = { version = "0.8.39", features = ["derive", "simd"] }
 bytes = "1.5.0"
 pin-project-lite = "0.2.13"
 
@@ -74,10 +74,10 @@ quinn-plaintext = { version = "0.3.0", optional = true }
 rustls = { version = "0.23.0", features = [
     "ring",
 ], default-features = false, optional = true }
-rcgen = { version = "0.12.1", optional = true }
+rcgen = { version = "0.14.7", optional = true }
 
 # for websocket
-tokio-websockets = { version = "0.8", optional = true, features = [
+tokio-websockets = { version = "0.13.1", optional = true, features = [
     "rustls-webpki-roots",
     "client",
     "server",
@@ -94,7 +94,7 @@ tun = { package = "tun-easytier", git = "https://github.com/EasyTier/rust-tun", 
     "async",
 ], optional = true }
 # for net ns
-nix = { version = "0.29.0", features = [
+nix = { version = "0.31.1", features = [
     "sched",
     "socket",
     "ioctl",
@@ -113,8 +113,8 @@ uuid = { version = "1.5.0", features = [
 once_cell = "1.18.0"
 
 # for rpc
-prost = "0.13"
-prost-types = "0.13"
+prost = "0.14.3"
+prost-types = "0.14.3"
 anyhow = "1.0"
 
 url = { version = "2.5", features = ["serde"] }
@@ -126,13 +126,14 @@ byteorder = "1.5.0"
 
 # for proxy
 cidr = { version = "0.3.1", features = ["serde"] }
-socket2 = { version = "0.5.10", features = ["all"] }
-prefix-trie = { version = "0.7.0", features = ["cidr"] }
+socket2 = { version = "0.6.2", features = ["all"] }
+prefix-trie = { version = "0.8.1", features = ["cidr"] }
 
 # for hole punching
-stun_codec = "0.3.4"
-bytecodec = "0.4.15"
-rand = "0.8.5"
+stun_codec = "0.4.0"
+bytecodec = "0.5.0"
+rand = "0.10.0"
+rand_core_06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
 
 serde = { version = "1.0", features = ["derive"] }
 # NOTE: This branch uses a third-party modified libpnet fork.
@@ -156,7 +157,7 @@ network-interface = "2.0"
 
 # for ospf route
 petgraph = "0.8.1"
-hashbrown = "0.15.3"
+hashbrown = "0.16.1"
 ordered_hash_map = "0.5.0"
 
 # for wireguard
@@ -171,10 +172,10 @@ snow = "0.10.0"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 
 # for cli
-tabled = "0.16"
+tabled = "0.20.0"
 humansize = "2.1.3"
 terminal_size = "0.4"
-unicode-width = "0.1"
+unicode-width = "0.2.2"
 
 base64 = "0.22"
 
@@ -214,7 +215,7 @@ zstd = { version = "0.13", optional = true }
 
 kcp-sys = { git = "https://github.com/EasyTier/kcp-sys", rev = "94964794caaed5d388463137da59b97499619e5f", optional = true }
 
-prost-reflect = { version = "0.14.5", default-features = false, features = [
+prost-reflect = { version = "0.16.3", default-features = false, features = [
     "derive",
 ] }
 
@@ -264,7 +265,7 @@ windivert = { git = "https://github.com/EasyTier/windivert-rust.git", rev = "adc
 ] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.52.0", features = [
+windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_NetworkManagement_WindowsFirewall",
     "Win32_System_Com",
@@ -275,13 +276,14 @@ windows = { version = "0.52.0", features = [
     "Win32_System_IO",
 ] }
 encoding = "0.2"
-winreg = "0.52"
-windows-service = "0.7.0"
-windows-sys = { version = "0.52", features = [
+winreg = "0.55.0"
+windows-service = "0.8.0"
+windows-sys = { version = "0.61.2", features = [
     "Win32_NetworkManagement_IpHelper",
     "Win32_NetworkManagement_Ndis",
     "Win32_Networking_WinSock",
     "Win32_Foundation",
+    "Win32_System_Diagnostics_Debug",
 ] }
 winapi = { version = "0.3.9", features = ["impl-default"] }
 
@@ -305,21 +307,21 @@ jemalloc-sys = { package = "tikv-jemalloc-sys", version = "0.6.0", features = [
 
 [build-dependencies]
 tonic-build = "0.12"
-globwalk = "0.8.1"
+globwalk = "0.9.1"
 regex = "1"
-prost-build = "0.13.2"
+prost-build = "0.14.3"
 easytier-rpc-build = { path = "../easytier-rpc-build", features = [
     "internal-namespace",
 ] }
-prost-reflect-build = { version = "0.14.0" }
+prost-reflect-build = { version = "0.16.0" }
 
 [target.'cfg(windows)'.build-dependencies]
 reqwest = { version = "0.12.12", features = ["blocking"] }
-zip = "4.0.0"
+zip = "8.0.0"
 
 [dev-dependencies]
 serial_test = "3.0.0"
-rstest = "0.25.0"
+rstest = "0.26.1"
 futures-util = "0.3.31"
 maplit = "1.0.2"
 tempfile = "3.22.0"

@@ -14,7 +14,7 @@ readme = "README.md"
 
 [dependencies]
 heck = "0.5"
-prost-build = "0.13"
+prost-build = "0.14"
 
 [features]
 default = []
